@@ -7,730 +7,589 @@
 <title>Garden Gnome</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;overflow:hidden;background:#142638;color:white;font-family:Arial,sans-serif;touch-action:none}
-canvas{display:block;width:100vw;height:100dvh;touch-action:none}
-#hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;text-shadow:0 2px 5px #234;font-weight:bold}
-.panel{background:#142638bb;padding:9px 13px;border-radius:12px;line-height:1.6}
-#chargeWrap{position:fixed;bottom:23px;left:10%;width:80%;height:16px;border:2px solid white;border-radius:20px;background:#2238;overflow:hidden;pointer-events:none}
-#charge{height:100%;width:0;background:linear-gradient(90deg,#5de5ff,#ffe45d,#ff713e);border-radius:20px}
-#message{position:fixed;bottom:49px;width:100%;text-align:center;text-shadow:0 2px 5px #234;font-weight:bold;pointer-events:none}
-#menu{position:fixed;inset:0;background:#102538ee;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:13px}
-#menu h1{font-size:34px;margin:0}
-#characters{display:flex;gap:9px;flex-wrap:wrap;justify-content:center}
-.char{font-size:30px;padding:10px;border:2px solid #789;border-radius:14px;background:#ffffff18}
-.char.selected{border-color:#ffe45d;background:#ffe45d33}
-button{border:0;border-radius:13px;padding:13px 25px;background:#ffd84d;color:#243044;font-weight:bold;font-size:17px}
-.small{font-size:13px;color:#c7d8e5;text-align:center;max-width:300px;line-height:1.7}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#87ceeb;font-family:system-ui,sans-serif;touch-action:none}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+#hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;color:white;text-shadow:0 2px 5px #333;font-weight:bold}
+.panel{background:#0005;padding:8px 13px;border-radius:14px;backdrop-filter:blur(5px)}
+#distance{font-size:23px}
+#best,#plays{font-size:12px}
+#chargeWrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);width:min(300px,75vw);height:16px;border:2px solid white;border-radius:20px;background:#0005;overflow:hidden;display:none}
+#charge{height:100%;width:0;background:linear-gradient(90deg,#70e65a,#ffe45c,#ff754b);border-radius:20px}
+#message{position:fixed;left:50%;top:45%;transform:translate(-50%,-50%);color:white;text-align:center;font-size:25px;font-weight:900;text-shadow:0 3px 8px #333;pointer-events:none;white-space:nowrap}
+#start{position:fixed;left:50%;bottom:65px;transform:translateX(-50%);border:0;border-radius:25px;padding:14px 30px;background:#fff;color:#27643b;font-size:18px;font-weight:bold;box-shadow:0 5px 0 #b4d6b9}
+#start:active{transform:translate(-50%,3px);box-shadow:0 2px 0 #b4d6b9}
+#hint{position:fixed;bottom:15px;left:0;right:0;text-align:center;color:white;text-shadow:0 2px 5px #333;font-size:12px;pointer-events:none}
+#character{position:fixed;top:75px;left:50%;transform:translateX(-50%);font-size:27px;display:none}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+
 <div id="hud">
- <div class="panel">距離 <span id="distance">0</span> m<br>最高記録 <span id="best">0</span> m</div>
- <div class="panel">プレイ回数 <span id="plays">0</span><br><span id="world">🌳 地上</span></div>
-</div>
-<div id="message">画面を長押ししてパワーをためよう！</div>
-<div id="chargeWrap"><div id="charge"></div></div>
-<div id="menu">
- <h1>🍄 Garden Gnome</h1>
- <div>ノームを選ぼう！</div>
- <div id="characters">
-  <button class="char selected" data-char="0">🧙</button>
-  <button class="char" data-char="1">🧝</button>
-  <button class="char" data-char="2">🎅</button>
-  <button class="char" data-char="3">🧑‍🌾</button>
-  <button class="char" data-char="4">🧙‍♂️</button>
+ <div class="panel">
+  <div id="distance">0 m</div>
+  <div id="best">BEST 0 m</div>
  </div>
- <div class="small">最初は長押しで発射！<br>飛行中にタップ・スペースで急降下！</div>
- <button id="start">ゲームスタート</button>
+ <div class="panel" id="plays">PLAY 0</div>
 </div>
+<div id="character">🧙</div>
+<div id="message">長押しして飛ぼう！</div>
+<div id="chargeWrap"><div id="charge"></div></div>
+<button id="start">スタート</button>
+<div id="hint">長押しでパワーをためる / 空中でタップ・スペースで急降下</div>
+
 <script>
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
-let W=innerWidth,H=innerHeight,DPR=1;
+const distanceEl=document.getElementById("distance");
+const bestEl=document.getElementById("best");
+const playsEl=document.getElementById("plays");
+const messageEl=document.getElementById("message");
+const startBtn=document.getElementById("start");
+const chargeWrap=document.getElementById("chargeWrap");
+const chargeEl=document.getElementById("charge");
+const characterEl=document.getElementById("character");
 
+let W=innerWidth,H=innerHeight,DPR=1;
 function resize(){
- W=innerWidth;H=innerHeight;
- DPR=Math.min(devicePixelRatio||1,2);
- canvas.width=W*DPR;
- canvas.height=H*DPR;
+ W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio||1,2);
+ canvas.width=W*DPR;canvas.height=H*DPR;
  ctx.setTransform(DPR,0,0,DPR,0,0);
 }
-addEventListener("resize",resize);
-resize();
+addEventListener("resize",resize);resize();
 
-const emojis=["🧙","🧝","🎅","🧑‍🌾","🧙‍♂️"];
+const groundY=()=>H-85;
 const rand=(a,b)=>a+Math.random()*(b-a);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-let selected=0;
-document.querySelectorAll(".char").forEach(b=>{
- b.onclick=()=>{
-  selected=+b.dataset.char;
-  document.querySelectorAll(".char").forEach(x=>{
-   x.classList.toggle("selected",x===b);
-  });
- };
-});
+let best=Number(localStorage.getItem("gnomeBest")||0);
+let plays=Number(localStorage.getItem("gnomePlays")||0);
+bestEl.textContent="BEST "+Math.floor(best)+" m";
+playsEl.textContent="PLAY "+plays;
 
-let best=+(localStorage.gnomeBest||0);
-let plays=+(localStorage.gnomePlays||0);
-document.getElementById("best").textContent=best;
-document.getElementById("plays").textContent=plays;
+const characters=["🧙","🧝","👨‍🌾","🧑‍🌾","🧌"];
+let charIndex=0;
 
-let player;
+let player={x:100,y:0,vx:0,vy:0,r:19,angle:0};
+let cameraX=0,cameraY=0;
 let objects=[];
-let pipes=[];
-let muds=[];
-let particles=[];
+let constellations=[];
 let generatedUntil=0;
-
-let groundY=0;
-let cameraX=0;
-let cameraY=0;
-let playing=false;
-let charging=false;
-let charge=0;
-let last=0;
-let distance=0;
-let space=false;
-let cloudTime=0;
-let diveUsed=false;
-let transporting=false;
-let transportTimer=0;
-let transportExitX=0;
-let stopped=false;
-let stopTimer=0;
-
 const CHUNK=1100;
 
-function reset(){
- groundY=H*.76;
- player={
-  x:100,y:groundY-24,
-  vx:0,vy:0,
-  angle:0,spin:0,
-  r:18,
-  launched:false,
-  diving:false,
-  grounded:true
- };
- objects=[];
- pipes=[];
- muds=[];
- particles=[];
- generatedUntil=0;
- cameraX=0;
- cameraY=0;
- distance=0;
- space=false;
- cloudTime=0;
- diveUsed=false;
- transporting=false;
- stopped=false;
- stopTimer=0;
- charge=0;
- charging=false;
+let running=false,charging=false,charge=0;
+let diveUsed=false;
+let inPipe=false,pipeTimer=0,pipeTarget=null;
+let mudStop=0,finished=false;
+let spaceBlend=0;
+let lastTime=0;
+let startX=100;
+let clouds=[];
+let stars=Array.from({length:180},()=>({
+ x:Math.random()*5000,
+ y:Math.random()*5000,
+ r:rand(.5,2),
+ a:rand(.3,1)
+}));
 
- generateWorld(0);
+const mascotPoints=[
+ [-42,-22],[-28,-38],[0,-43],[28,-38],[42,-22],
+ [42,20],[27,38],[0,43],[-27,38],[-42,20],
+ [-22,-5],[22,-5],[-18,19],[0,26],[18,19],
+ [0,-43],[0,-58]
+];
+const mascotEdges=[
+ [0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],
+ [7,8],[8,9],[9,0],[10,11],[12,13],[13,14],
+ [1,10],[3,11],[15,16]
+];
+
+function makeConstellation(x){
+ return {
+  x,
+  y:groundY()-rand(H*3.4,H*5.3),
+  scale:rand(1.0,1.45),
+  points:mascotPoints
+ };
 }
 
 function generateWorld(target){
  while(generatedUntil<target+CHUNK*2){
-  let start=generatedUntil;
-  let end=start+CHUNK;
+  let s=generatedUntil;
+  let e=s+CHUNK;
 
-  // キノコをランダム配置
-  for(let i=0;i<7;i++){
-   let x=rand(start+100,end-80);
-   let mega=Math.random()<.16;
+  // キノコの数を少し減らした
+  const count=4+Math.floor(Math.random()*2);
+  for(let i=0;i<count;i++){
+   const x=rand(s+80,e-80);
    objects.push({
-    x,y:groundY-14,
-    type:mega?"mega":"mush",
-    r:mega?31:rand(16,21),
-    hit:false
-   });
-  }
-
-  // 雲
-  if(Math.random()<.8){
-   objects.push({
-    x:rand(start+150,end-100),
-    y:groundY-rand(H*1.1,H*2.8),
-    type:"cloud",
-    r:rand(45,85),
-    hit:false
-   });
-  }
-
-  // 泥エリア
-  if(Math.random()<.35){
-   muds.push({
-    x:rand(start+200,end-220),
-    w:rand(100,190),
-    y:groundY
-   });
-  }
-
-  // 土管
-  if(Math.random()<.38){
-   let x=rand(start+250,end-180);
-   pipes.push({
-    x,y:groundY-58,
-    w:66,h:58,
+    type:"mushroom",x,y:groundY()-13,
+    r:rand(22,30),
+    mega:Math.random()<.12,
     used:false
    });
   }
 
-  generatedUntil=end;
+  if(Math.random()<.32){
+   objects.push({type:"mud",x:rand(s+150,e-230),y:groundY()-8,w:rand(100,190),h:18});
+  }
+
+  if(Math.random()<.34){
+   objects.push({type:"pipe",x:rand(s+180,e-180),y:groundY()-45,used:false});
+  }
+
+  if(Math.random()<.65){
+   objects.push({
+    type:"cloud",x:rand(s+100,e-100),
+    y:groundY()-rand(H*.6,H*1.7),
+    w:rand(80,150),h:rand(28,48)
+   });
+  }
+
+  // 宇宙に時々チャッピー型の星座を配置
+  if(Math.random()<.27){
+   constellations.push(makeConstellation(rand(s+100,e-100)));
+  }
+
+  generatedUntil=e;
  }
 }
 
-function start(){
- document.getElementById("menu").style.display="none";
+function resetGame(){
+ objects=[];
+ constellations=[];
+ generatedUntil=0;
+ player={x:100,y:groundY()-20,vx:0,vy:0,r:19,angle:0};
+ cameraX=0;cameraY=0;
+ charge=0;charging=false;diveUsed=false;
+ inPipe=false;pipeTimer=0;pipeTarget=null;
+ mudStop=0;finished=false;running=true;
+ spaceBlend=0;
+ startX=100;
+ generateWorld(0);
  plays++;
- localStorage.gnomePlays=plays;
- document.getElementById("plays").textContent=plays;
- reset();
- playing=true;
- last=performance.now();
- requestAnimationFrame(loop);
-}
-document.getElementById("start").onclick=start;
-
-function burst(x,y,n,color){
- for(let i=0;i<n;i++){
-  let a=rand(0,Math.PI*2);
-  let s=rand(2,11);
-  particles.push({
-   x,y,
-   vx:Math.cos(a)*s,
-   vy:Math.sin(a)*s,
-   life:rand(25,65),
-   color,
-   size:rand(3,8)
-  });
- }
+ localStorage.setItem("gnomePlays",plays);
+ playsEl.textContent="PLAY "+plays;
+ messageEl.textContent="";
+ startBtn.style.display="none";
+ characterEl.style.display="block";
+ characterEl.textContent=characters[charIndex];
+ chargeWrap.style.display="block";
 }
 
-function beginCharge(){
- if(!playing||player.launched||transporting||stopped)return;
- charging=true;
- charge=0;
-}
-function releaseCharge(){
- if(!charging||!playing||player.launched)return;
+function finishGame(){
+ if(finished)return;
+ finished=true;
+ running=false;
  charging=false;
- let power=Math.min(charge,1);
- player.vx=8+power*15;
- player.vy=-7-power*10;
- player.launched=true;
- player.grounded=false;
- player.spin=.2;
- burst(player.x,player.y,25,"#fff1a6");
- document.getElementById("message").textContent="飛んでいるよ！タップで急降下！";
- document.getElementById("charge").style.width="0%";
+ chargeWrap.style.display="none";
+ startBtn.style.display="block";
+ startBtn.textContent="もう一度";
+ messageEl.textContent="ゲーム終了！";
+}
+
+function launch(power){
+ player.vx=8+power*20;
+ player.vy=-10-power*21;
+ diveUsed=false;
+ charging=false;
+ charge=0;
+ chargeWrap.style.display="none";
 }
 
 function dive(){
- if(!playing||!player.launched||diveUsed||transporting||stopped)return;
- diveUsed=true;
- player.diving=true;
- player.vy=Math.max(player.vy,0)+19;
+ if(!running||finished||inPipe||diveUsed)return;
+ if(player.vy<0)player.vy=3;
+ else player.vy=Math.max(player.vy,13);
+ player.vy+=7;
  player.vx*=1.12;
- player.spin+=.45;
- burst(player.x,player.y,16,"#e8f8ff");
- document.getElementById("message").textContent="⬇ 急降下！！";
+ diveUsed=true;
 }
 
-canvas.addEventListener("pointerdown",e=>{
- e.preventDefault();
- if(!playing)return;
- if(!player.launched)beginCharge();
- else dive();
-});
-addEventListener("pointerup",releaseCharge);
-addEventListener("pointercancel",releaseCharge);
-
-let keyDown=false;
-addEventListener("keydown",e=>{
- if(e.code==="Space"&&!keyDown){
-  e.preventDefault();
-  keyDown=true;
-  if(!playing)return;
-  if(!player.launched)beginCharge();
-  else dive();
- }
-});
-addEventListener("keyup",e=>{
- if(e.code==="Space"){
-  keyDown=false;
-  releaseCharge();
- }
-});
-
-function finish(){
- if(!playing)return;
- playing=false;
- charging=false;
- document.getElementById("charge").style.width="0%";
- document.getElementById("message").textContent="記録 "+distance+" m！";
- setTimeout(()=>{
-  document.getElementById("menu").style.display="flex";
-  document.getElementById("message").textContent="画面を長押ししてパワーをためよう！";
- },1400);
-}
-
-// 土管に入る
 function enterPipe(pipe){
- if(pipe.used||transporting)return;
+ if(inPipe||pipe.used)return;
+ inPipe=true;
  pipe.used=true;
- transporting=true;
- transportTimer=0;
-
- transportExitX=pipe.x+rand(650,950);
-
- player.x=pipe.x+pipe.w/2;
- player.y=pipe.y+pipe.h/2;
- player.vx=0;
- player.vy=0;
- player.spin=0;
-
- burst(player.x,player.y,30,"#8cff8c");
- document.getElementById("message").textContent="🟢 土管の中を移動中...";
+ pipeTimer=0;
+ pipeTarget=pipe;
+ player.vx=0;player.vy=0;
+ player.x=pipe.x+10;
 }
 
-// 土管から大ジャンプ
 function exitPipe(){
- player.x=transportExitX;
- player.y=groundY-145;
-
- // 強力な斜め上方向の発射
+ inPipe=false;
+ player.x=pipeTarget.x+95;
+ player.y=groundY()-100;
  player.vx=rand(27,33);
  player.vy=-rand(27,34);
-
- player.angle=-.8;
- player.spin=.55;
- player.grounded=false;
- player.diving=false;
- player.launched=true;
-
+ player.angle=0;
  diveUsed=false;
- stopped=false;
- transporting=false;
- cloudTime=0;
-
- burst(player.x,player.y,90,"#7cff9c");
- burst(player.x,player.y,55,"#ffffff");
-
- document.getElementById("message").textContent="🚀 土管スーパー発射！！";
-}
-
-function inMud(x){
- return muds.find(m=>x>=m.x&&x<=m.x+m.w);
+ pipeTarget=null;
 }
 
 function update(dt){
- let p=player;
- let step=Math.min(dt,35)/16.67;
+ if(!running)return;
+ const g=groundY();
 
- if(charging&&!p.launched){
-  charge=Math.min(1,charge+step*.012);
-  document.getElementById("charge").style.width=(charge*100)+"%";
+ if(charging){
+  charge=clamp(charge+dt*.00055,0,1);
+  chargeEl.style.width=(charge*100)+"%";
  }
 
- if(transporting){
-  transportTimer+=dt;
-  if(transportTimer>=900)exitPipe();
+ if(inPipe){
+  pipeTimer+=dt;
+  if(pipeTimer>900)exitPipe();
   return;
  }
 
- if(stopped){
-  stopTimer+=dt;
-  if(stopTimer>1300)finish();
-  return;
- }
+ if(finished)return;
 
- if(!p.launched)return;
+ player.vy+=.48*(dt/16.67);
+ player.x+=player.vx*(dt/16.67);
+ player.y+=player.vy*(dt/16.67);
+ player.angle+=player.vx*.012*(dt/16.67);
 
- // 空中の物理
- p.vy+=.34*step;
+ player.vx*=Math.pow(.997,dt/16.67);
 
- if(cloudTime>0){
-  p.vy-=.27*step;
-  cloudTime-=dt;
- }
-
- p.vx=Math.max(-4,Math.min(34,p.vx));
- p.vy=Math.max(-32,Math.min(35,p.vy));
-
- // 位置更新
- p.x+=p.vx*step;
- p.y+=p.vy*step;
-
- // 回転
- p.angle+=p.spin*step;
- p.spin*=Math.pow(.995,step);
-
- // 先の世界を自動生成
- generateWorld(p.x);
-
- // 雲
+ // 雲の上では少し浮力
  for(const o of objects){
-  if(o.hit||o.type!=="cloud")continue;
-  if(Math.abs(p.x-o.x)>100)continue;
-
-  let dx=p.x-o.x;
-  let dy=p.y-o.y;
-  if(Math.hypot(dx,dy)<o.r+p.r){
-   o.hit=true;
-   cloudTime=2600;
-   p.vy=Math.min(p.vy,-3);
-   burst(o.x,o.y,45,"#ffffff");
-   document.getElementById("message").textContent="☁️ 雲の上をふわふわ！";
+  if(o.type==="cloud" &&
+     Math.abs(player.x-o.x)<o.w*.55 &&
+     Math.abs(player.y-o.y)<45 &&
+     player.vy>0){
+   player.vy-=.24*(dt/16.67);
   }
  }
 
- // キノコ衝突
+ // キノコに当たる
  for(const o of objects){
-  if(o.hit||o.type==="cloud")continue;
-  if(Math.abs(p.x-o.x)>90)continue;
-
-  let dx=p.x-o.x;
-  let dy=p.y-o.y;
-  let d=Math.hypot(dx,dy);
-
-  if(d<o.r+p.r){
-   o.hit=true;
-   let impact=Math.max(0,p.vy);
-
-   if(o.type==="mega"){
-    p.vy=-Math.max(24,impact*2.5+13);
-    p.vx=Math.max(p.vx*1.55,24);
-    p.spin+=.65;
-    burst(o.x,o.y,120,"#ffd43b");
-    burst(o.x,o.y,70,"#ffffff");
-    document.getElementById("message").textContent="⭐ MEGA MUSHROOM！！";
-   }else{
-    p.vy=-Math.max(14,impact*2.05+10);
-    p.vx=Math.max(p.vx*1.15,11+impact*.45);
-    p.spin+=.42;
-    burst(o.x,o.y,35,"#ff6584");
-    document.getElementById("message").textContent="🍄 超ジャンプ！！";
-   }
-
-   p.diving=false;
-   p.grounded=false;
+  if(o.type!=="mushroom"||o.used)continue;
+  const dx=player.x-o.x;
+  const dy=player.y-o.y;
+  if(Math.abs(dx)<o.r+player.r && dy> -o.r-15 && dy<o.r+player.r && player.vy>0){
+   o.used=true;
+   player.y=o.y-player.r-o.r*.6;
+   player.vy=-(o.mega?rand(27,33):rand(17,23));
+   player.vx=Math.max(player.vx,o.mega?23:13);
    diveUsed=false;
   }
  }
 
- // 地面との衝突
- let floor=groundY-p.r;
-
- if(p.y>=floor&&p.vy>=0){
-  p.y=floor;
-  p.grounded=true;
-
-  let mud=inMud(p.x);
-
-  if(mud){
-   // 泥は強い抵抗で完全停止
-   p.vy=0;
-   p.vx*=Math.pow(.65,step);
-   p.spin*=Math.pow(.5,step);
-   p.diving=false;
-
-   if(Math.abs(p.vx)<.22){
-    p.vx=0;
-    p.vy=0;
-    p.spin=0;
-    stopped=true;
-    stopTimer=0;
-    document.getElementById("message").textContent="🟤 泥でピタッと停止！";
-   }else{
-    document.getElementById("message").textContent="🟤 泥で減速中...";
-   }
-  }else{
-   // 通常地面の反発
-   if(p.vy>2.5){
-    p.vy=-p.vy*.28;
-    p.vx*=.94;
-    p.spin+=.2;
-    p.grounded=false;
-   }else{
-    p.vy=0;
-    p.vx*=Math.pow(.988,step);
-    p.spin*=.8;
-   }
-   p.diving=false;
-   if(Math.abs(p.vy)<2)diveUsed=false;
+ // パイプに入る
+ for(const o of objects){
+  if(o.type==="pipe"&&!o.used&&
+    Math.abs(player.x-o.x)<28&&
+    player.y>g-105&&player.vy>0){
+    enterPipe(o);return;
   }
  }
 
- // 土管に転がり込む
- for(const pipe of pipes){
-  if(pipe.used||transporting)continue;
-  if(Math.abs(p.x-pipe.x)>95)continue;
-
-  let near=p.x>pipe.x-20&&p.x<pipe.x+pipe.w+20;
-  let low=p.y>groundY-90;
-
-  if(near&&low&&p.vx>3){
-   enterPipe(pipe);
+ // 泥の上では強く減速して停止
+ let onMud=false;
+ for(const o of objects){
+  if(o.type==="mud"&&player.x>o.x&&player.x<o.x+o.w&&player.y+player.r>=g-8){
+   onMud=true;
    break;
   }
  }
 
- // カメラ追従
- cameraX=Math.max(0,p.x-W*.34);
- cameraY=p.y-H*.48;
-
- distance=Math.max(0,Math.floor(p.x/10));
- document.getElementById("distance").textContent=distance;
-
- let isSpace=(groundY-p.y)>H*3;
- if(isSpace!==space){
-  space=isSpace;
-  document.getElementById("world").textContent=space?"🚀 宇宙":"🌳 地上";
- }
-
- if(distance>best){
-  best=distance;
-  localStorage.gnomeBest=best;
-  document.getElementById("best").textContent=best;
- }
-}
-
-// 背景
-function drawBackground(){
- if(space){
-  ctx.fillStyle="#080c2c";
-  ctx.fillRect(0,0,W,H);
-  for(let i=0;i<120;i++){
-   let x=((i*173-cameraX*.12)%W+W)%W;
-   let y=((i*97-cameraY*.1)%H+H)%H;
-   ctx.globalAlpha=.4+(i%5)*.12;
-   ctx.fillStyle=i%4===0?"#ffe88a":"#fff";
-   ctx.fillRect(x,y,2,2);
-  }
-  ctx.globalAlpha=1;
-  ctx.fillStyle="#a9b8ff";
-  ctx.beginPath();
-  ctx.arc(W*.78,H*.2,35,0,Math.PI*2);
-  ctx.fill();
+ if(onMud){
+  player.vx*=Math.pow(.80,dt/16.67);
+  player.vy=0;
+  player.y=g-player.r;
+  if(Math.abs(player.vx)<.12){
+   player.vx=0;
+   mudStop+=dt;
+   if(mudStop>1300)finishGame();
+  }else mudStop=0;
  }else{
-  let g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,"#69c6ee");
-  g.addColorStop(1,"#e2f7d4");
-  ctx.fillStyle=g;
-  ctx.fillRect(0,0,W,H);
-
-  for(let i=0;i<9;i++){
-   let x=((i*260-cameraX*.25)%(W+300)+W+300)%(W+300)-100;
-   let y=90+i%3*80;
-   ctx.fillStyle="#ffffff66";
-   ctx.beginPath();
-   ctx.arc(x,y,35,0,Math.PI*2);
-   ctx.arc(x+35,y-5,45,0,Math.PI*2);
-   ctx.arc(x+75,y+10,30,0,Math.PI*2);
-   ctx.fill();
+  mudStop=0;
+  if(player.y+player.r>=g){
+   player.y=g-player.r;
+   if(player.vy>0){
+    player.vy=-player.vy*.34;
+    if(Math.abs(player.vy)<2.5)player.vy=0;
+    diveUsed=false;
+   }
+   if(player.vy===0)player.vx*=.96;
   }
+ }
+
+ // 宇宙への移行をなめらかに
+ const altitude=g-player.y;
+ let t=clamp((altitude-H*2.25)/(H*1.5),0,1);
+ spaceBlend=t*t*(3-2*t);
+
+ cameraX=Math.max(0,player.x-W*.28);
+ cameraY=player.y-H*.52;
+
+ generateWorld(player.x);
+
+ // 古いオブジェクトを整理
+ objects=objects.filter(o=>o.x>cameraX-500);
+ constellations=constellations.filter(o=>o.x>cameraX-1000);
+
+ const dist=Math.max(0,(player.x-startX)/10);
+ distanceEl.textContent=Math.floor(dist)+" m";
+ if(dist>best){
+  best=dist;
+  localStorage.setItem("gnomeBest",best);
+  bestEl.textContent="BEST "+Math.floor(best)+" m";
  }
 }
 
-// 地面
-function drawGround(){
- let gy=groundY-cameraY;
- if(gy<H+100&&gy>-100){
-  ctx.fillStyle=space?"#30334b":"#4b9a46";
-  ctx.fillRect(0,gy,W,H-gy+200);
-  ctx.fillStyle=space?"#8588a0":"#8bcf5d";
-  ctx.fillRect(0,gy,W,8);
- }
+function drawBackground(){
+ const g=groundY();
+ const sky=ctx.createLinearGradient(0,0,0,H);
+ sky.addColorStop(0,"#4aa9e9");
+ sky.addColorStop(.65,"#a8e3ff");
+ sky.addColorStop(1,"#e5f8ff");
+ ctx.fillStyle=sky;
+ ctx.fillRect(0,0,W,H);
 
- // 泥
- for(const m of muds){
-  let x=m.x-cameraX;
-  let y=m.y-cameraY;
-  if(x+m.w<-10||x>W+10)continue;
-
-  ctx.fillStyle="#60432f";
-  ctx.beginPath();
-  ctx.roundRect(x,y-5,m.w,17,7);
-  ctx.fill();
-
-  ctx.fillStyle="#876044";
-  for(let i=0;i<6;i++){
-   ctx.beginPath();
-   ctx.arc(x+12+i*m.w/6,y+1,5,0,Math.PI*2);
-   ctx.fill();
-  }
-
-  ctx.fillStyle="#b58a62";
-  ctx.fillRect(x+5,y-4,m.w-10,3);
- }
-}
-
-// キノコ
-function drawMushroom(o,x,y){
+ // 宇宙の色を透明度で重ねる
  ctx.save();
- ctx.translate(x,y);
- ctx.fillStyle="#f5e5cf";
- ctx.fillRect(-6,0,12,18);
- ctx.fillStyle="#e94360";
- ctx.beginPath();
- ctx.arc(0,0,o.r,Math.PI,Math.PI*2);
- ctx.fill();
+ ctx.globalAlpha=spaceBlend;
+ const space=ctx.createLinearGradient(0,0,0,H);
+ space.addColorStop(0,"#080d2c");
+ space.addColorStop(.55,"#17194a");
+ space.addColorStop(1,"#34245c");
+ ctx.fillStyle=space;
+ ctx.fillRect(0,0,W,H);
+
+ // 星
+ for(const s of stars){
+  const sx=((s.x-cameraX*.18)%W+W)%W;
+  const sy=((s.y-cameraY*.18)%H+H)%H;
+  ctx.globalAlpha=spaceBlend*s.a;
+  ctx.fillStyle="white";
+  ctx.beginPath();ctx.arc(sx,sy,s.r,0,Math.PI*2);ctx.fill();
+ }
+ ctx.globalAlpha=spaceBlend;
+ // 遠くの惑星
+ ctx.fillStyle="#c8a9ff";
+ ctx.globalAlpha=spaceBlend*.65;
+ ctx.beginPath();ctx.arc(W*.78,H*.25,42,0,Math.PI*2);ctx.fill();
  ctx.fillStyle="#fff";
- for(let i=-1;i<=1;i++){
-  ctx.beginPath();
-  ctx.arc(i*7,-8,3,0,Math.PI*2);
-  ctx.fill();
- }
+ ctx.globalAlpha=spaceBlend*.35;
+ ctx.beginPath();ctx.ellipse(W*.78,H*.25,62,12,-.3,0,Math.PI*2);ctx.stroke();
  ctx.restore();
+
+ // 地面
+ ctx.fillStyle="#5aaf49";
+ ctx.fillRect(0,g,W,H-g);
+ ctx.fillStyle="#398b3b";
+ ctx.fillRect(0,g,W,8);
+ ctx.fillStyle="#7b5535";
+ ctx.fillRect(0,g+8,W,H-g-8);
 }
 
-// 巨大キノコ
-function drawMega(o,x,y){
+function drawMushroom(o){
+ const x=o.x-cameraX,y=o.y-cameraY;
+ const r=o.r;
  ctx.save();
  ctx.translate(x,y);
- ctx.shadowColor="#ffe34e";
- ctx.shadowBlur=22;
- ctx.fillStyle="#ffda35";
+ ctx.fillStyle="#fff0c9";
+ ctx.fillRect(-7,0,14,22);
+ ctx.fillStyle=o.mega?"#ff9b22":"#e64c62";
  ctx.beginPath();
- ctx.arc(0,0,o.r,0,Math.PI*2);
- ctx.fill();
- ctx.shadowBlur=0;
- ctx.fillStyle="#b84739";
- ctx.beginPath();
- ctx.arc(0,-4,o.r*.9,Math.PI,Math.PI*2);
+ ctx.ellipse(0,-3,r,r*.57,0,Math.PI,Math.PI*2);
  ctx.fill();
  ctx.fillStyle="white";
- ctx.font="22px Arial";
- ctx.textAlign="center";
- ctx.fillText("⭐",0,12);
+ for(let i=0;i<4;i++){
+  ctx.beginPath();ctx.arc((i-1.5)*r*.38,-r*.35,3.5,0,Math.PI*2);ctx.fill();
+ }
+ if(o.mega){
+  ctx.strokeStyle="#ffe76a";ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(0,-4,r+5,Math.PI,Math.PI*2);ctx.stroke();
+ }
  ctx.restore();
 }
 
-// 土管の描画
-function drawPipe(pipe){
- let x=pipe.x-cameraX;
- let y=pipe.y-cameraY;
- let w=pipe.w;
- let h=pipe.h;
- if(x<-100||x>W+100)return;
-
- // 本体
- ctx.fillStyle="#087d37";
- ctx.fillRect(x+7,y+13,w-14,h-13);
-
- // 暗い側面
- ctx.fillStyle="#07552d";
- ctx.fillRect(x+w-17,y+13,9,h-13);
-
- // 明るい側面
- ctx.fillStyle="#20b653";
- ctx.fillRect(x+10,y+16,10,h-16);
-
- // 上部の厚い縁
- ctx.fillStyle="#087a34";
- ctx.fillRect(x,y,w,19);
-
- ctx.fillStyle="#25c75b";
- ctx.fillRect(x+3,y+2,w-6,7);
-
- // 入口の穴
- ctx.fillStyle="#063d26";
- ctx.beginPath();
- ctx.ellipse(x+w/2,y+10,w*.4,7,0,0,Math.PI*2);
- ctx.fill();
-
- ctx.fillStyle="#111f20";
- ctx.beginPath();
- ctx.ellipse(x+w/2,y+10,w*.28,4,0,0,Math.PI*2);
- ctx.fill();
-
- // 下の縁
- ctx.fillStyle="#07552d";
- ctx.fillRect(x+7,y+h-5,w-14,5);
+function drawPipe(o){
+ const x=o.x-cameraX,y=o.y-cameraY;
+ ctx.save();
+ ctx.fillStyle="#168b43";
+ ctx.fillRect(x-18,y,36,48);
+ ctx.fillStyle="#31bd62";
+ ctx.fillRect(x-25,y-9,50,15);
+ ctx.fillStyle="#075c35";
+ ctx.beginPath();ctx.ellipse(x,y-8,16,6,0,0,Math.PI*2);ctx.fill();
+ ctx.strokeStyle="#7de99a";ctx.lineWidth=3;
+ ctx.beginPath();ctx.moveTo(x-19,y-4);ctx.lineTo(x-19,y+42);ctx.stroke();
+ ctx.restore();
 }
 
-function drawWorld(){
- drawGround();
-
- for(const o of objects){
-  let x=o.x-cameraX;
-  let y=o.y-cameraY;
-  if(x<-120||x>W+120||y<-150||y>H+150||o.hit)continue;
-
-  if(o.type==="cloud"){
-   ctx.fillStyle="#ffffffcc";
-   ctx.beginPath();
-   ctx.arc(x,y,o.r*.55,0,Math.PI*2);
-   ctx.arc(x-o.r*.4,y+8,o.r*.4,0,Math.PI*2);
-   ctx.arc(x+o.r*.4,y+7,o.r*.42,0,Math.PI*2);
-   ctx.fill();
-  }else if(o.type==="mega"){
-   drawMega(o,x,y);
-  }else{
-   drawMushroom(o,x,y);
-  }
+function drawMud(o){
+ const x=o.x-cameraX,y=o.y-cameraY;
+ ctx.fillStyle="#60402c";
+ ctx.beginPath();
+ ctx.ellipse(x+o.w/2,y,o.w/2,o.h,0,0,Math.PI*2);
+ ctx.fill();
+ ctx.fillStyle="#87603d";
+ for(let i=0;i<5;i++){
+  ctx.beginPath();ctx.arc(x+rand(0,o.w),y+rand(-5,5),3,0,Math.PI*2);ctx.fill();
  }
+}
 
- for(const pipe of pipes)drawPipe(pipe);
+function drawCloud(o){
+ const x=o.x-cameraX,y=o.y-cameraY;
+ ctx.fillStyle="#ffffffcc";
+ ctx.beginPath();
+ ctx.arc(x-o.w*.22,y, o.h*.55,0,Math.PI*2);
+ ctx.arc(x,y-o.h*.25,o.h*.8,0,Math.PI*2);
+ ctx.arc(x+o.w*.25,y,o.h*.6,0,Math.PI*2);
+ ctx.fill();
+}
+
+function drawConstellation(c){
+ const x=c.x-cameraX*.18;
+ const y=c.y-cameraY*.18;
+ const alpha=spaceBlend*.9;
+ if(alpha<.02)return;
+ ctx.save();
+ ctx.translate(x,y);
+ ctx.scale(c.scale,c.scale);
+ ctx.globalAlpha=alpha;
+ ctx.strokeStyle="#a9dfff";
+ ctx.lineWidth=1.5;
+ ctx.shadowColor="#79cfff";
+ ctx.shadowBlur=9;
+
+ for(const [a,b] of mascotEdges){
+  const p=mascotPoints[a],q=mascotPoints[b];
+  ctx.beginPath();
+  ctx.moveTo(p[0],p[1]);
+  ctx.lineTo(q[0],q[1]);
+  ctx.stroke();
+ }
+ for(let i=0;i<mascotPoints.length;i++){
+  const p=mascotPoints[i];
+  ctx.fillStyle=i===16?"#fff1a8":"#d8f5ff";
+  ctx.beginPath();
+  ctx.arc(p[0],p[1],i===16?3.8:2.7,0,Math.PI*2);
+  ctx.fill();
+ }
+ ctx.restore();
 }
 
 function drawPlayer(){
- if(!player)return;
- let x=player.x-cameraX;
- let y=player.y-cameraY;
-
  ctx.save();
+ const x=player.x-cameraX,y=player.y-cameraY;
  ctx.translate(x,y);
  ctx.rotate(player.angle);
- ctx.font="42px serif";
+ ctx.font="34px sans-serif";
  ctx.textAlign="center";
  ctx.textBaseline="middle";
- ctx.fillText(emojis[selected],0,0);
+ ctx.fillText(characters[charIndex],0,0);
  ctx.restore();
 }
 
-function drawParticles(dt){
- for(let i=particles.length-1;i>=0;i--){
-  let p=particles[i];
-  p.x+=p.vx*dt/16.67;
-  p.y+=p.vy*dt/16.67;
-  p.vy+=.12*dt/16.67;
-  p.life-=dt/16.67;
-
-  ctx.globalAlpha=Math.max(0,p.life/55);
-  ctx.fillStyle=p.color;
-  ctx.beginPath();
-  ctx.arc(p.x-cameraX,p.y-cameraY,p.size,0,Math.PI*2);
-  ctx.fill();
-
-  if(p.life<=0)particles.splice(i,1);
+function drawWorld(){
+ for(const o of objects){
+  if(o.x<cameraX-200||o.x>cameraX+W+200)continue;
+  if(o.type==="mushroom")drawMushroom(o);
+  if(o.type==="pipe")drawPipe(o);
+  if(o.type==="mud")drawMud(o);
+  if(o.type==="cloud")drawCloud(o);
  }
- ctx.globalAlpha=1;
+ for(const c of constellations){
+  if(c.x>cameraX-300&&c.x<cameraX+W+300)drawConstellation(c);
+ }
 }
 
-function render(dt){
+function draw(){
+ ctx.clearRect(0,0,W,H);
  drawBackground();
+ ctx.save();
+ ctx.translate(0,0);
  drawWorld();
- drawParticles(dt);
- drawPlayer();
+ if(running&&!inPipe)drawPlayer();
+ if(inPipe){
+  ctx.font="45px sans-serif";
+  ctx.textAlign="center";
+  ctx.fillText("🌀",player.x-cameraX,player.y-cameraY);
+ }
+ ctx.restore();
+
+ // 空と宇宙の表示
+ if(running){
+  ctx.fillStyle="#ffffffcc";
+  ctx.font="bold 13px sans-serif";
+  ctx.textAlign="right";
+  ctx.fillText(spaceBlend>.5?"🚀 SPACE":"🌳 GARDEN",W-15, H-18);
+ }
 }
 
 function loop(now){
- if(!playing)return;
- let dt=Math.min(35,now-last||16);
- last=now;
+ const dt=Math.min(40,now-lastTime||16.67);
+ lastTime=now;
  update(dt);
- render(dt);
+ draw();
  requestAnimationFrame(loop);
 }
+requestAnimationFrame(loop);
 
-render(16);
+// 操作
+function pressStart(){
+ if(!running){
+  resetGame();
+  charging=true;
+  charge=0;
+  return;
+ }
+ if(!finished&&!inPipe&&!charging&&player.y+player.r<groundY()-3){
+  dive();
+ }
+}
+
+function releaseStart(){
+ if(charging&&running&&!finished){
+  launch(charge);
+ }
+}
+
+startBtn.addEventListener("click",()=>{
+ if(!running||finished){
+  resetGame();
+  charging=true;
+ }
+});
+
+canvas.addEventListener("pointerdown",e=>{
+ if(!running||finished)return;
+ if(!charging&&player.y+player.r>=groundY()-3){
+  charging=true;charge=0;chargeWrap.style.display="block";
+ }else if(!charging){
+  dive();
+ }
+});
+canvas.addEventListener("pointerup",releaseStart);
+canvas.addEventListener("pointercancel",releaseStart);
+
+addEventListener("keydown",e=>{
+ if(e.code==="Space"){
+  e.preventDefault();
+  if(!running||finished){
+   resetGame();
+   charging=true;
+  }else if(!charging){
+   dive();
+  }
+ }
+ if(e.code==="ArrowUp"&& !running){
+  charIndex=(charIndex+1)%characters.length;
+ }
+});
+addEventListener("keyup",e=>{
+ if(e.code==="Space")releaseStart();
+});
+
+// キャラクター変更
+characterEl.addEventListener("click",()=>{
+ charIndex=(charIndex+1)%characters.length;
+ characterEl.textContent=characters[charIndex];
+});
 </script>
 </body>
 </html>

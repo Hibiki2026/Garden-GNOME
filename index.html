@@ -48,18 +48,28 @@ button{border:0;border-radius:13px;padding:13px 25px;background:#ffd84d;color:#2
 const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 let W=innerWidth,H=innerHeight,DPR=1;
+
 function resize(){
- W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio||1,2);
- canvas.width=W*DPR;canvas.height=H*DPR;
+ W=innerWidth;H=innerHeight;
+ DPR=Math.min(devicePixelRatio||1,2);
+ canvas.width=W*DPR;
+ canvas.height=H*DPR;
  ctx.setTransform(DPR,0,0,DPR,0,0);
 }
-addEventListener("resize",resize);resize();
+addEventListener("resize",resize);
+resize();
 
 const emojis=["🧙","🧝","🎅","🧑‍🌾","🧙‍♂️"];
+const rand=(a,b)=>a+Math.random()*(b-a);
+
 let selected=0;
-document.querySelectorAll(".char").forEach(b=>b.onclick=()=>{
- selected=+b.dataset.char;
- document.querySelectorAll(".char").forEach(x=>x.classList.toggle("selected",x===b));
+document.querySelectorAll(".char").forEach(b=>{
+ b.onclick=()=>{
+  selected=+b.dataset.char;
+  document.querySelectorAll(".char").forEach(x=>{
+   x.classList.toggle("selected",x===b);
+  });
+ };
 });
 
 let best=+(localStorage.gnomeBest||0);
@@ -67,86 +77,145 @@ let plays=+(localStorage.gnomePlays||0);
 document.getElementById("best").textContent=best;
 document.getElementById("plays").textContent=plays;
 
-const rand=(a,b)=>a+Math.random()*(b-a);
-let player,objects=[],particles=[],pipes=[],muds=[];
-let cameraX=0,cameraY=0,groundY=0;
-let playing=false,charging=false,charge=0,last=0;
-let distance=0,space=false,cloudTime=0;
-let diveUsed=false,transporting=false,transportTimer=0;
-let stopped=false,finishTimer=null;
+let player;
+let objects=[];
+let pipes=[];
+let muds=[];
+let particles=[];
+let generatedUntil=0;
+
+let groundY=0;
+let cameraX=0;
+let cameraY=0;
+let playing=false;
+let charging=false;
+let charge=0;
+let last=0;
+let distance=0;
+let space=false;
+let cloudTime=0;
+let diveUsed=false;
+let transporting=false;
+let transportTimer=0;
+let transportExitX=0;
+let stopped=false;
+let stopTimer=0;
+
+const CHUNK=1100;
 
 function reset(){
  groundY=H*.76;
  player={
-  x:100,y:groundY-24,vx:0,vy:0,
-  angle:0,spin:0,launched:false,
-  diving:false,r:18,grounded:true
+  x:100,y:groundY-24,
+  vx:0,vy:0,
+  angle:0,spin:0,
+  r:18,
+  launched:false,
+  diving:false,
+  grounded:true
  };
- objects=[];particles=[];pipes=[];muds=[];
- cameraX=0;cameraY=0;distance=0;space=false;
- cloudTime=0;diveUsed=false;transporting=false;
- stopped=false;charge=0;charging=false;
+ objects=[];
+ pipes=[];
+ muds=[];
+ particles=[];
+ generatedUntil=0;
+ cameraX=0;
+ cameraY=0;
+ distance=0;
+ space=false;
+ cloudTime=0;
+ diveUsed=false;
+ transporting=false;
+ stopped=false;
+ stopTimer=0;
+ charge=0;
+ charging=false;
 
- // キノコをたくさん配置
- for(let i=0;i<100;i++){
-  let x=rand(350,19000);
-  let mega=(i+1)%5===0;
-  objects.push({
-   x,y:groundY-15,
-   type:mega?"mega":"mush",
-   r:mega?30:rand(16,21),
-   hit:false
-  });
- }
+ generateWorld(0);
+}
 
- // 雲
- for(let i=0;i<35;i++){
-  objects.push({
-   x:rand(500,18000),
-   y:groundY-rand(H*1.05,H*2.7),
-   type:"cloud",r:rand(45,85),hit:false
-  });
- }
+function generateWorld(target){
+ while(generatedUntil<target+CHUNK*2){
+  let start=generatedUntil;
+  let end=start+CHUNK;
 
- // 泥の地面
- for(let i=0;i<18;i++){
-  let x=rand(900,17000);
-  muds.push({x,w:rand(100,180),y:groundY});
- }
+  // キノコをランダム配置
+  for(let i=0;i<7;i++){
+   let x=rand(start+100,end-80);
+   let mega=Math.random()<.16;
+   objects.push({
+    x,y:groundY-14,
+    type:mega?"mega":"mush",
+    r:mega?31:rand(16,21),
+    hit:false
+   });
+  }
 
- // 土管
- for(let i=0;i<10;i++){
-  let x=rand(1300,17500);
-  pipes.push({x,y:groundY-54,w:58,h:54,used:false});
+  // 雲
+  if(Math.random()<.8){
+   objects.push({
+    x:rand(start+150,end-100),
+    y:groundY-rand(H*1.1,H*2.8),
+    type:"cloud",
+    r:rand(45,85),
+    hit:false
+   });
+  }
+
+  // 泥エリア
+  if(Math.random()<.35){
+   muds.push({
+    x:rand(start+200,end-220),
+    w:rand(100,190),
+    y:groundY
+   });
+  }
+
+  // 土管
+  if(Math.random()<.38){
+   let x=rand(start+250,end-180);
+   pipes.push({
+    x,y:groundY-58,
+    w:66,h:58,
+    used:false
+   });
+  }
+
+  generatedUntil=end;
  }
- objects.sort((a,b)=>a.x-b.x);
 }
 
 function start(){
  document.getElementById("menu").style.display="none";
- plays++;localStorage.gnomePlays=plays;
+ plays++;
+ localStorage.gnomePlays=plays;
  document.getElementById("plays").textContent=plays;
- reset();playing=true;last=performance.now();
+ reset();
+ playing=true;
+ last=performance.now();
  requestAnimationFrame(loop);
 }
 document.getElementById("start").onclick=start;
 
 function burst(x,y,n,color){
  for(let i=0;i<n;i++){
-  let a=rand(0,Math.PI*2),s=rand(2,11);
+  let a=rand(0,Math.PI*2);
+  let s=rand(2,11);
   particles.push({
-   x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
-   life:rand(25,60),color,size:rand(3,8)
+   x,y,
+   vx:Math.cos(a)*s,
+   vy:Math.sin(a)*s,
+   life:rand(25,65),
+   color,
+   size:rand(3,8)
   });
  }
 }
-function cloudBurst(x,y){
- burst(x,y,45,"#ffffff");
-}
 
 function beginCharge(){
- if(!playing||player.launched||transporting)return;
- charging=true;charge=0;
+ if(!playing||player.launched||transporting||stopped)return;
+ charging=true;
+ charge=0;
 }
 function releaseCharge(){
  if(!charging||!playing||player.launched)return;
@@ -156,20 +225,23 @@ function releaseCharge(){
  player.vy=-7-power*10;
  player.launched=true;
  player.grounded=false;
- player.spin=player.vx*.025;
- burst(player.x,player.y,20,"#fff1a6");
+ player.spin=.2;
+ burst(player.x,player.y,25,"#fff1a6");
  document.getElementById("message").textContent="飛んでいるよ！タップで急降下！";
+ document.getElementById("charge").style.width="0%";
 }
+
 function dive(){
  if(!playing||!player.launched||diveUsed||transporting||stopped)return;
  diveUsed=true;
  player.diving=true;
- player.vy=Math.max(player.vy,0)+17;
+ player.vy=Math.max(player.vy,0)+19;
  player.vx*=1.12;
- player.spin+=.25;
- burst(player.x,player.y,12,"#e8f8ff");
- document.getElementById("message").textContent="急降下！！";
+ player.spin+=.45;
+ burst(player.x,player.y,16,"#e8f8ff");
+ document.getElementById("message").textContent="⬇ 急降下！！";
 }
+
 canvas.addEventListener("pointerdown",e=>{
  e.preventDefault();
  if(!playing)return;
@@ -182,57 +254,84 @@ addEventListener("pointercancel",releaseCharge);
 let keyDown=false;
 addEventListener("keydown",e=>{
  if(e.code==="Space"&&!keyDown){
-  e.preventDefault();keyDown=true;
-  if(!player.launched)beginCharge();else dive();
+  e.preventDefault();
+  keyDown=true;
+  if(!playing)return;
+  if(!player.launched)beginCharge();
+  else dive();
  }
 });
 addEventListener("keyup",e=>{
- if(e.code==="Space"){keyDown=false;releaseCharge()}
+ if(e.code==="Space"){
+  keyDown=false;
+  releaseCharge();
+ }
 });
 
 function finish(){
  if(!playing)return;
- playing=false;charging=false;
+ playing=false;
+ charging=false;
  document.getElementById("charge").style.width="0%";
  document.getElementById("message").textContent="記録 "+distance+" m！";
- clearTimeout(finishTimer);
- finishTimer=setTimeout(()=>{
+ setTimeout(()=>{
   document.getElementById("menu").style.display="flex";
   document.getElementById("message").textContent="画面を長押ししてパワーをためよう！";
- },1500);
+ },1400);
 }
 
-// 土管の中に入る
+// 土管に入る
 function enterPipe(pipe){
  if(pipe.used||transporting)return;
  pipe.used=true;
  transporting=true;
  transportTimer=0;
- player.vx=0;player.vy=0;
+
+ transportExitX=pipe.x+rand(650,950);
+
  player.x=pipe.x+pipe.w/2;
  player.y=pipe.y+pipe.h/2;
- burst(player.x,player.y,20,"#8cff8c");
- document.getElementById("message").textContent="土管の中を移動中...";
+ player.vx=0;
+ player.vy=0;
+ player.spin=0;
+
+ burst(player.x,player.y,30,"#8cff8c");
+ document.getElementById("message").textContent="🟢 土管の中を移動中...";
 }
 
+// 土管から大ジャンプ
 function exitPipe(){
- let exitX=player.x+rand(450,750);
- player.x=exitX;
- player.y=groundY-100;
- player.vx=rand(16,21);
- player.vy=-rand(11,16);
- player.angle=-.5;
- player.spin=.2;
+ player.x=transportExitX;
+ player.y=groundY-145;
+
+ // 強力な斜め上方向の発射
+ player.vx=rand(27,33);
+ player.vy=-rand(27,34);
+
+ player.angle=-.8;
+ player.spin=.55;
  player.grounded=false;
  player.diving=false;
+ player.launched=true;
+
+ diveUsed=false;
+ stopped=false;
  transporting=false;
- burst(player.x,player.y,45,"#7cff9c");
- document.getElementById("message").textContent="土管から飛び出した！";
+ cloudTime=0;
+
+ burst(player.x,player.y,90,"#7cff9c");
+ burst(player.x,player.y,55,"#ffffff");
+
+ document.getElementById("message").textContent="🚀 土管スーパー発射！！";
+}
+
+function inMud(x){
+ return muds.find(m=>x>=m.x&&x<=m.x+m.w);
 }
 
 function update(dt){
  let p=player;
- let step=dt/16.67;
+ let step=Math.min(dt,35)/16.67;
 
  if(charging&&!p.launched){
   charge=Math.min(1,charge+step*.012);
@@ -241,108 +340,148 @@ function update(dt){
 
  if(transporting){
   transportTimer+=dt;
-  if(transportTimer>850)exitPipe();
+  if(transportTimer>=900)exitPipe();
   return;
  }
+
+ if(stopped){
+  stopTimer+=dt;
+  if(stopTimer>1300)finish();
+  return;
+ }
+
  if(!p.launched)return;
 
- // 急降下・空中物理
+ // 空中の物理
  p.vy+=.34*step;
+
  if(cloudTime>0){
   p.vy-=.27*step;
   cloudTime-=dt;
  }
- if(p.diving)p.vy+=.34*step;
 
- // 速度制限
- p.vx=Math.max(-4,Math.min(30,p.vx));
- p.vy=Math.max(-28,Math.min(32,p.vy));
+ p.vx=Math.max(-4,Math.min(34,p.vx));
+ p.vy=Math.max(-32,Math.min(35,p.vy));
 
+ // 位置更新
  p.x+=p.vx*step;
  p.y+=p.vy*step;
+
+ // 回転
  p.angle+=p.spin*step;
  p.spin*=Math.pow(.995,step);
 
- // キノコ・巨大キノコ・雲との衝突
+ // 先の世界を自動生成
+ generateWorld(p.x);
+
+ // 雲
  for(const o of objects){
-  if(o.hit)continue;
-  let dx=p.x-o.x,dy=p.y-o.y;
+  if(o.hit||o.type!=="cloud")continue;
+  if(Math.abs(p.x-o.x)>100)continue;
+
+  let dx=p.x-o.x;
+  let dy=p.y-o.y;
   if(Math.hypot(dx,dy)<o.r+p.r){
-   if(o.type==="cloud"){
-    o.hit=true;cloudTime=2600;
-    p.vy=Math.min(p.vy,-3);
-    cloudBurst(o.x,o.y);
-    document.getElementById("message").textContent="☁️ 雲の上をふわふわ！";
+   o.hit=true;
+   cloudTime=2600;
+   p.vy=Math.min(p.vy,-3);
+   burst(o.x,o.y,45,"#ffffff");
+   document.getElementById("message").textContent="☁️ 雲の上をふわふわ！";
+  }
+ }
+
+ // キノコ衝突
+ for(const o of objects){
+  if(o.hit||o.type==="cloud")continue;
+  if(Math.abs(p.x-o.x)>90)continue;
+
+  let dx=p.x-o.x;
+  let dy=p.y-o.y;
+  let d=Math.hypot(dx,dy);
+
+  if(d<o.r+p.r){
+   o.hit=true;
+   let impact=Math.max(0,p.vy);
+
+   if(o.type==="mega"){
+    p.vy=-Math.max(24,impact*2.5+13);
+    p.vx=Math.max(p.vx*1.55,24);
+    p.spin+=.65;
+    burst(o.x,o.y,120,"#ffd43b");
+    burst(o.x,o.y,70,"#ffffff");
+    document.getElementById("message").textContent="⭐ MEGA MUSHROOM！！";
    }else{
-    o.hit=true;
-    let impact=Math.max(0,p.vy);
-    if(o.type==="mega"){
-     p.vy=-Math.max(20,impact*2.2);
-     p.vx=Math.max(p.vx*1.45,22);
-     burst(o.x,o.y,110,"#ffd43b");
-     burst(o.x,o.y,55,"#fff");
-     document.getElementById("message").textContent="⭐ MEGA MUSHROOM!!";
-    }else{
-     // 落下速度を強く反映して跳ね返す
-     p.vy=-Math.max(12,impact*1.85+9);
-     p.vx=Math.max(p.vx*1.12,10+impact*.35);
-     p.spin+=.32;
-     burst(o.x,o.y,28,"#ff6584");
-     document.getElementById("message").textContent="🍄 大ジャンプ！！";
-    }
-    p.diving=false;
-    p.grounded=false;
-    diveUsed=false;
+    p.vy=-Math.max(14,impact*2.05+10);
+    p.vx=Math.max(p.vx*1.15,11+impact*.45);
+    p.spin+=.42;
+    burst(o.x,o.y,35,"#ff6584");
+    document.getElementById("message").textContent="🍄 超ジャンプ！！";
    }
+
+   p.diving=false;
+   p.grounded=false;
+   diveUsed=false;
   }
  }
 
  // 地面との衝突
  let floor=groundY-p.r;
+
  if(p.y>=floor&&p.vy>=0){
   p.y=floor;
   p.grounded=true;
 
-  // 泥の範囲内なら強い抵抗で停止
-  let inMud=muds.find(m=>p.x>=m.x&&p.x<=m.x+m.w);
-  if(inMud){
+  let mud=inMud(p.x);
+
+  if(mud){
+   // 泥は強い抵抗で完全停止
    p.vy=0;
-   p.vx*=Math.pow(.72,step);
-   p.spin*=Math.pow(.65,step);
+   p.vx*=Math.pow(.65,step);
+   p.spin*=Math.pow(.5,step);
    p.diving=false;
-   document.getElementById("message").textContent="🟤 泥にハマって停止中...";
-   if(Math.abs(p.vx)<.18){
-    p.vx=0;p.vy=0;stopped=true;
+
+   if(Math.abs(p.vx)<.22){
+    p.vx=0;
+    p.vy=0;
+    p.spin=0;
+    stopped=true;
+    stopTimer=0;
     document.getElementById("message").textContent="🟤 泥でピタッと停止！";
+   }else{
+    document.getElementById("message").textContent="🟤 泥で減速中...";
    }
   }else{
-   // 通常の地面は反発・摩擦
-   if(p.vy>2){
+   // 通常地面の反発
+   if(p.vy>2.5){
     p.vy=-p.vy*.28;
-    p.vx*=.91;
-    p.spin+=.15;
+    p.vx*=.94;
+    p.spin+=.2;
+    p.grounded=false;
    }else{
     p.vy=0;
-    p.vx*=Math.pow(.985,step);
+    p.vx*=Math.pow(.988,step);
+    p.spin*=.8;
    }
    p.diving=false;
+   if(Math.abs(p.vy)<2)diveUsed=false;
   }
-
-  // 地面に着いたら急降下の使用権を戻す
-  if(Math.abs(p.vy)<2&&!inMud)diveUsed=false;
  }
 
- // 土管の入口に転がり込む
+ // 土管に転がり込む
  for(const pipe of pipes){
-  if(pipe.used)continue;
-  let near=p.x>pipe.x-20&&p.x<pipe.x+pipe.w+15;
-  let atGround=p.y>groundY-75;
-  if(near&&atGround&&p.vx>2){
-   enterPipe(pipe);break;
+  if(pipe.used||transporting)continue;
+  if(Math.abs(p.x-pipe.x)>95)continue;
+
+  let near=p.x>pipe.x-20&&p.x<pipe.x+pipe.w+20;
+  let low=p.y>groundY-90;
+
+  if(near&&low&&p.vx>3){
+   enterPipe(pipe);
+   break;
   }
  }
 
- // カメラ
+ // カメラ追従
  cameraX=Math.max(0,p.x-W*.34);
  cameraY=p.y-H*.48;
 
@@ -355,21 +494,19 @@ function update(dt){
   document.getElementById("world").textContent=space?"🚀 宇宙":"🌳 地上";
  }
 
- if(p.x/10>best){
-  best=Math.floor(p.x/10);
+ if(distance>best){
+  best=distance;
   localStorage.gnomeBest=best;
   document.getElementById("best").textContent=best;
  }
-
- if(p.x>20000||p.y>groundY+1200||(stopped&&p.vx===0)){
-  finish();
- }
 }
 
+// 背景
 function drawBackground(){
  if(space){
-  ctx.fillStyle="#080c2c";ctx.fillRect(0,0,W,H);
-  for(let i=0;i<110;i++){
+  ctx.fillStyle="#080c2c";
+  ctx.fillRect(0,0,W,H);
+  for(let i=0;i<120;i++){
    let x=((i*173-cameraX*.12)%W+W)%W;
    let y=((i*97-cameraY*.1)%H+H)%H;
    ctx.globalAlpha=.4+(i%5)*.12;
@@ -378,12 +515,17 @@ function drawBackground(){
   }
   ctx.globalAlpha=1;
   ctx.fillStyle="#a9b8ff";
-  ctx.beginPath();ctx.arc(W*.78,H*.2,35,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();
+  ctx.arc(W*.78,H*.2,35,0,Math.PI*2);
+  ctx.fill();
  }else{
   let g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,"#69c6ee");g.addColorStop(1,"#e2f7d4");
-  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  for(let i=0;i<8;i++){
+  g.addColorStop(0,"#69c6ee");
+  g.addColorStop(1,"#e2f7d4");
+  ctx.fillStyle=g;
+  ctx.fillRect(0,0,W,H);
+
+  for(let i=0;i<9;i++){
    let x=((i*260-cameraX*.25)%(W+300)+W+300)%(W+300)-100;
    let y=90+i%3*80;
    ctx.fillStyle="#ffffff66";
@@ -396,6 +538,7 @@ function drawBackground(){
  }
 }
 
+// 地面
 function drawGround(){
  let gy=groundY-cameraY;
  if(gy<H+100&&gy>-100){
@@ -404,79 +547,122 @@ function drawGround(){
   ctx.fillStyle=space?"#8588a0":"#8bcf5d";
   ctx.fillRect(0,gy,W,8);
  }
+
  // 泥
  for(const m of muds){
-  let x=m.x-cameraX,y=m.y-cameraY;
+  let x=m.x-cameraX;
+  let y=m.y-cameraY;
   if(x+m.w<-10||x>W+10)continue;
+
   ctx.fillStyle="#60432f";
-  ctx.beginPath();ctx.roundRect(x,y-5,m.w,17,7);ctx.fill();
+  ctx.beginPath();
+  ctx.roundRect(x,y-5,m.w,17,7);
+  ctx.fill();
+
   ctx.fillStyle="#876044";
-  for(let i=0;i<5;i++){
-   ctx.beginPath();ctx.arc(x+12+i*m.w/5,y+1,5,0,Math.PI*2);ctx.fill();
+  for(let i=0;i<6;i++){
+   ctx.beginPath();
+   ctx.arc(x+12+i*m.w/6,y+1,5,0,Math.PI*2);
+   ctx.fill();
   }
+
   ctx.fillStyle="#b58a62";
   ctx.fillRect(x+5,y-4,m.w-10,3);
  }
 }
 
+// キノコ
 function drawMushroom(o,x,y){
- ctx.save();ctx.translate(x,y);
+ ctx.save();
+ ctx.translate(x,y);
  ctx.fillStyle="#f5e5cf";
  ctx.fillRect(-6,0,12,18);
  ctx.fillStyle="#e94360";
- ctx.beginPath();ctx.arc(0,0,o.r,Math.PI,Math.PI*2);ctx.fill();
+ ctx.beginPath();
+ ctx.arc(0,0,o.r,Math.PI,Math.PI*2);
+ ctx.fill();
  ctx.fillStyle="#fff";
  for(let i=-1;i<=1;i++){
-  ctx.beginPath();ctx.arc(i*7,-8,3,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();
+  ctx.arc(i*7,-8,3,0,Math.PI*2);
+  ctx.fill();
  }
  ctx.restore();
 }
 
+// 巨大キノコ
 function drawMega(o,x,y){
- ctx.save();ctx.translate(x,y);
- ctx.shadowColor="#ffe34e";ctx.shadowBlur=22;
+ ctx.save();
+ ctx.translate(x,y);
+ ctx.shadowColor="#ffe34e";
+ ctx.shadowBlur=22;
  ctx.fillStyle="#ffda35";
- ctx.beginPath();ctx.arc(0,0,o.r,0,Math.PI*2);ctx.fill();
+ ctx.beginPath();
+ ctx.arc(0,0,o.r,0,Math.PI*2);
+ ctx.fill();
  ctx.shadowBlur=0;
  ctx.fillStyle="#b84739";
- ctx.beginPath();ctx.arc(0,-4,o.r*.9,Math.PI,Math.PI*2);ctx.fill();
- ctx.fillStyle="white";ctx.font="22px Arial";ctx.textAlign="center";
+ ctx.beginPath();
+ ctx.arc(0,-4,o.r*.9,Math.PI,Math.PI*2);
+ ctx.fill();
+ ctx.fillStyle="white";
+ ctx.font="22px Arial";
+ ctx.textAlign="center";
  ctx.fillText("⭐",0,12);
  ctx.restore();
 }
 
+// 土管の描画
 function drawPipe(pipe){
- let x=pipe.x-cameraX,y=pipe.y-cameraY,w=pipe.w,h=pipe.h;
+ let x=pipe.x-cameraX;
+ let y=pipe.y-cameraY;
+ let w=pipe.w;
+ let h=pipe.h;
  if(x<-100||x>W+100)return;
- // 土管本体
+
+ // 本体
  ctx.fillStyle="#087d37";
  ctx.fillRect(x+7,y+13,w-14,h-13);
- // 側面の影
+
+ // 暗い側面
  ctx.fillStyle="#07552d";
- ctx.fillRect(x+w-15,y+13,8,h-13);
- // 明るい面
+ ctx.fillRect(x+w-17,y+13,9,h-13);
+
+ // 明るい側面
  ctx.fillStyle="#20b653";
  ctx.fillRect(x+10,y+16,10,h-16);
- // 上部の太い縁
+
+ // 上部の厚い縁
  ctx.fillStyle="#087a34";
- ctx.fillRect(x,y,w,18);
+ ctx.fillRect(x,y,w,19);
+
  ctx.fillStyle="#25c75b";
  ctx.fillRect(x+3,y+2,w-6,7);
- // 穴
+
+ // 入口の穴
  ctx.fillStyle="#063d26";
- ctx.beginPath();ctx.ellipse(x+w/2,y+9,w*.39,6,0,0,Math.PI*2);ctx.fill();
+ ctx.beginPath();
+ ctx.ellipse(x+w/2,y+10,w*.4,7,0,0,Math.PI*2);
+ ctx.fill();
+
  ctx.fillStyle="#111f20";
- ctx.beginPath();ctx.ellipse(x+w/2,y+9,w*.27,3.5,0,0,Math.PI*2);ctx.fill();
- // 下部の縁
+ ctx.beginPath();
+ ctx.ellipse(x+w/2,y+10,w*.28,4,0,0,Math.PI*2);
+ ctx.fill();
+
+ // 下の縁
  ctx.fillStyle="#07552d";
  ctx.fillRect(x+7,y+h-5,w-14,5);
 }
 
 function drawWorld(){
  drawGround();
+
  for(const o of objects){
-  let x=o.x-cameraX,y=o.y-cameraY;
+  let x=o.x-cameraX;
+  let y=o.y-cameraY;
   if(x<-120||x>W+120||y<-150||y>H+150||o.hit)continue;
+
   if(o.type==="cloud"){
    ctx.fillStyle="#ffffffcc";
    ctx.beginPath();
@@ -484,34 +670,45 @@ function drawWorld(){
    ctx.arc(x-o.r*.4,y+8,o.r*.4,0,Math.PI*2);
    ctx.arc(x+o.r*.4,y+7,o.r*.42,0,Math.PI*2);
    ctx.fill();
-  }else if(o.type==="mega")drawMega(o,x,y);
-  else drawMushroom(o,x,y);
+  }else if(o.type==="mega"){
+   drawMega(o,x,y);
+  }else{
+   drawMushroom(o,x,y);
+  }
  }
+
  for(const pipe of pipes)drawPipe(pipe);
 }
 
 function drawPlayer(){
  if(!player)return;
- let x=player.x-cameraX,y=player.y-cameraY;
- if(transporting){
-  ctx.globalAlpha=.45;
- }
- ctx.save();ctx.translate(x,y);ctx.rotate(player.angle);
- ctx.font="42px serif";ctx.textAlign="center";ctx.textBaseline="middle";
+ let x=player.x-cameraX;
+ let y=player.y-cameraY;
+
+ ctx.save();
+ ctx.translate(x,y);
+ ctx.rotate(player.angle);
+ ctx.font="42px serif";
+ ctx.textAlign="center";
+ ctx.textBaseline="middle";
  ctx.fillText(emojis[selected],0,0);
- ctx.restore();ctx.globalAlpha=1;
+ ctx.restore();
 }
 
 function drawParticles(dt){
  for(let i=particles.length-1;i>=0;i--){
   let p=particles[i];
-  p.x+=p.vx*dt/16.67;p.y+=p.vy*dt/16.67;
-  p.vy+=.12*dt/16.67;p.life-=dt/16.67;
+  p.x+=p.vx*dt/16.67;
+  p.y+=p.vy*dt/16.67;
+  p.vy+=.12*dt/16.67;
+  p.life-=dt/16.67;
+
   ctx.globalAlpha=Math.max(0,p.life/55);
   ctx.fillStyle=p.color;
   ctx.beginPath();
   ctx.arc(p.x-cameraX,p.y-cameraY,p.size,0,Math.PI*2);
   ctx.fill();
+
   if(p.life<=0)particles.splice(i,1);
  }
  ctx.globalAlpha=1;
@@ -532,6 +729,7 @@ function loop(now){
  render(dt);
  requestAnimationFrame(loop);
 }
+
 render(16);
 </script>
 </body>

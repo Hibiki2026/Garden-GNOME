@@ -7,20 +7,20 @@
 <title>Garden Gnome</title>
 <style>
 *{box-sizing:border-box}
-body{margin:0;background:#101c2b;color:white;font-family:Arial,sans-serif;overflow:hidden;touch-action:none}
-#game{display:block;width:100vw;height:100dvh;background:#8bd5ed;touch-action:none}
+body{margin:0;overflow:hidden;background:#142638;color:white;font-family:Arial,sans-serif;touch-action:none}
+canvas{display:block;width:100vw;height:100dvh;touch-action:none}
 #hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;text-shadow:0 2px 5px #234;font-weight:bold}
-.panel{background:#142638bb;padding:9px 13px;border-radius:12px}
-#chargeWrap{position:fixed;bottom:24px;left:10%;width:80%;height:17px;border:2px solid white;border-radius:20px;background:#2238;overflow:hidden;pointer-events:none}
+.panel{background:#142638bb;padding:9px 13px;border-radius:12px;line-height:1.6}
+#chargeWrap{position:fixed;bottom:23px;left:10%;width:80%;height:16px;border:2px solid white;border-radius:20px;background:#2238;overflow:hidden;pointer-events:none}
 #charge{height:100%;width:0;background:linear-gradient(90deg,#5de5ff,#ffe45d,#ff713e);border-radius:20px}
-#message{position:fixed;bottom:55px;width:100%;text-align:center;text-shadow:0 2px 5px #234;font-weight:bold;pointer-events:none}
-#menu{position:fixed;inset:0;background:#102538ee;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+#message{position:fixed;bottom:49px;width:100%;text-align:center;text-shadow:0 2px 5px #234;font-weight:bold;pointer-events:none}
+#menu{position:fixed;inset:0;background:#102538ee;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:13px}
 #menu h1{font-size:34px;margin:0}
-#characters{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-.char{font-size:32px;padding:12px;border:2px solid #789;border-radius:14px;background:#ffffff18}
+#characters{display:flex;gap:9px;flex-wrap:wrap;justify-content:center}
+.char{font-size:30px;padding:10px;border:2px solid #789;border-radius:14px;background:#ffffff18}
 .char.selected{border-color:#ffe45d;background:#ffe45d33}
 button{border:0;border-radius:13px;padding:13px 25px;background:#ffd84d;color:#243044;font-weight:bold;font-size:17px}
-.small{font-size:13px;color:#c7d8e5}
+.small{font-size:13px;color:#c7d8e5;text-align:center;max-width:300px;line-height:1.7}
 </style>
 </head>
 <body>
@@ -41,14 +41,18 @@ button{border:0;border-radius:13px;padding:13px 25px;background:#ffd84d;color:#2
   <button class="char" data-char="3">🧑‍🌾</button>
   <button class="char" data-char="4">🧙‍♂️</button>
  </div>
- <div class="small">画面を長押しして発射！長いほど遠くへ飛ぶ！</div>
+ <div class="small">最初は長押しで発射！<br>飛行中にタップ・スペースで急降下！</div>
  <button id="start">ゲームスタート</button>
- <div class="small">キーボード：スペースキーでも操作できるよ</div>
 </div>
 <script>
-const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
-let W=innerWidth,H=innerHeight,DPR=Math.min(devicePixelRatio||1,2);
-function resize(){W=innerWidth;H=innerHeight;canvas.width=W*DPR;canvas.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+let W=innerWidth,H=innerHeight,DPR=1;
+function resize(){
+ W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio||1,2);
+ canvas.width=W*DPR;canvas.height=H*DPR;
+ ctx.setTransform(DPR,0,0,DPR,0,0);
+}
 addEventListener("resize",resize);resize();
 
 const emojis=["🧙","🧝","🎅","🧑‍🌾","🧙‍♂️"];
@@ -58,27 +62,62 @@ document.querySelectorAll(".char").forEach(b=>b.onclick=()=>{
  document.querySelectorAll(".char").forEach(x=>x.classList.toggle("selected",x===b));
 });
 
-let best=+(localStorage.gnomeBest||0),plays=+(localStorage.gnomePlays||0);
+let best=+(localStorage.gnomeBest||0);
+let plays=+(localStorage.gnomePlays||0);
 document.getElementById("best").textContent=best;
 document.getElementById("plays").textContent=plays;
 
-let player,objects=[],particles=[],cameraX=0,cameraY=0;
-let playing=false,charging=false,charge=0,last=0,space=false;
-let distance=0,cloudTime=0,megaBoost=0,groundY=0;
 const rand=(a,b)=>a+Math.random()*(b-a);
+let player,objects=[],particles=[],pipes=[],muds=[];
+let cameraX=0,cameraY=0,groundY=0;
+let playing=false,charging=false,charge=0,last=0;
+let distance=0,space=false,cloudTime=0;
+let diveUsed=false,transporting=false,transportTimer=0;
+let stopped=false,finishTimer=null;
 
 function reset(){
  groundY=H*.76;
- player={x:100,y:groundY-30,vx:0,vy:0,angle:0,launched:false};
- objects=[];particles=[];cameraX=0;cameraY=0;
- distance=0;cloudTime=0;megaBoost=0;space=false;
- for(let i=0;i<90;i++){
-  let x=rand(260,15000);
+ player={
+  x:100,y:groundY-24,vx:0,vy:0,
+  angle:0,spin:0,launched:false,
+  diving:false,r:18,grounded:true
+ };
+ objects=[];particles=[];pipes=[];muds=[];
+ cameraX=0;cameraY=0;distance=0;space=false;
+ cloudTime=0;diveUsed=false;transporting=false;
+ stopped=false;charge=0;charging=false;
+
+ // キノコをたくさん配置
+ for(let i=0;i<100;i++){
+  let x=rand(350,19000);
   let mega=(i+1)%5===0;
-  objects.push({x,y:groundY-rand(5,35),type:mega?"mega":"mush",r:mega?30:rand(13,20),hit:false});
+  objects.push({
+   x,y:groundY-15,
+   type:mega?"mega":"mush",
+   r:mega?30:rand(16,21),
+   hit:false
+  });
  }
- for(let i=0;i<28;i++){
-  objects.push({x:rand(500,14000),y:groundY-rand(H*1.05,H*2.3),type:"cloud",r:rand(45,85),hit:false});
+
+ // 雲
+ for(let i=0;i<35;i++){
+  objects.push({
+   x:rand(500,18000),
+   y:groundY-rand(H*1.05,H*2.7),
+   type:"cloud",r:rand(45,85),hit:false
+  });
+ }
+
+ // 泥の地面
+ for(let i=0;i<18;i++){
+  let x=rand(900,17000);
+  muds.push({x,w:rand(100,180),y:groundY});
+ }
+
+ // 土管
+ for(let i=0;i<10;i++){
+  let x=rand(1300,17500);
+  pipes.push({x,y:groundY-54,w:58,h:54,used:false});
  }
  objects.sort((a,b)=>a.x-b.x);
 }
@@ -90,10 +129,25 @@ function start(){
  reset();playing=true;last=performance.now();
  requestAnimationFrame(loop);
 }
-
 document.getElementById("start").onclick=start;
 
-function beginCharge(){if(!playing||player.launched)return;charging=true;charge=0}
+function burst(x,y,n,color){
+ for(let i=0;i<n;i++){
+  let a=rand(0,Math.PI*2),s=rand(2,11);
+  particles.push({
+   x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
+   life:rand(25,60),color,size:rand(3,8)
+  });
+ }
+}
+function cloudBurst(x,y){
+ burst(x,y,45,"#ffffff");
+}
+
+function beginCharge(){
+ if(!playing||player.launched||transporting)return;
+ charging=true;charge=0;
+}
 function releaseCharge(){
  if(!charging||!playing||player.launched)return;
  charging=false;
@@ -101,118 +155,248 @@ function releaseCharge(){
  player.vx=8+power*15;
  player.vy=-7-power*10;
  player.launched=true;
+ player.grounded=false;
+ player.spin=player.vx*.025;
  burst(player.x,player.y,20,"#fff1a6");
- document.getElementById("message").textContent="飛んでいるよ！";
+ document.getElementById("message").textContent="飛んでいるよ！タップで急降下！";
 }
-canvas.addEventListener("pointerdown",e=>{e.preventDefault();beginCharge()});
+function dive(){
+ if(!playing||!player.launched||diveUsed||transporting||stopped)return;
+ diveUsed=true;
+ player.diving=true;
+ player.vy=Math.max(player.vy,0)+17;
+ player.vx*=1.12;
+ player.spin+=.25;
+ burst(player.x,player.y,12,"#e8f8ff");
+ document.getElementById("message").textContent="急降下！！";
+}
+canvas.addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ if(!playing)return;
+ if(!player.launched)beginCharge();
+ else dive();
+});
 addEventListener("pointerup",releaseCharge);
 addEventListener("pointercancel",releaseCharge);
-let keyDown=false;
-addEventListener("keydown",e=>{if(e.code==="Space"&&!keyDown){e.preventDefault();keyDown=true;beginCharge()}});
-addEventListener("keyup",e=>{if(e.code==="Space"){keyDown=false;releaseCharge()}});
 
-function burst(x,y,n,color){
- for(let i=0;i<n;i++){
-  let a=rand(0,Math.PI*2),s=rand(2,10);
-  particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(25,55),color,size:rand(3,8)});
+let keyDown=false;
+addEventListener("keydown",e=>{
+ if(e.code==="Space"&&!keyDown){
+  e.preventDefault();keyDown=true;
+  if(!player.launched)beginCharge();else dive();
  }
+});
+addEventListener("keyup",e=>{
+ if(e.code==="Space"){keyDown=false;releaseCharge()}
+});
+
+function finish(){
+ if(!playing)return;
+ playing=false;charging=false;
+ document.getElementById("charge").style.width="0%";
+ document.getElementById("message").textContent="記録 "+distance+" m！";
+ clearTimeout(finishTimer);
+ finishTimer=setTimeout(()=>{
+  document.getElementById("menu").style.display="flex";
+  document.getElementById("message").textContent="画面を長押ししてパワーをためよう！";
+ },1500);
 }
-function cloudBurst(x,y){
- burst(x,y,45,"#ffffff");
- for(let i=0;i<18;i++)particles.push({x:x+rand(-30,30),y:y+rand(-15,15),vx:rand(-3,3),vy:rand(-5,-1),life:60,color:"#b8efff",size:rand(8,17)});
+
+// 土管の中に入る
+function enterPipe(pipe){
+ if(pipe.used||transporting)return;
+ pipe.used=true;
+ transporting=true;
+ transportTimer=0;
+ player.vx=0;player.vy=0;
+ player.x=pipe.x+pipe.w/2;
+ player.y=pipe.y+pipe.h/2;
+ burst(player.x,player.y,20,"#8cff8c");
+ document.getElementById("message").textContent="土管の中を移動中...";
+}
+
+function exitPipe(){
+ let exitX=player.x+rand(450,750);
+ player.x=exitX;
+ player.y=groundY-100;
+ player.vx=rand(16,21);
+ player.vy=-rand(11,16);
+ player.angle=-.5;
+ player.spin=.2;
+ player.grounded=false;
+ player.diving=false;
+ transporting=false;
+ burst(player.x,player.y,45,"#7cff9c");
+ document.getElementById("message").textContent="土管から飛び出した！";
 }
 
 function update(dt){
- if(charging&&!player.launched){
-  charge=Math.min(1,charge+dt*.00035);
+ let p=player;
+ let step=dt/16.67;
+
+ if(charging&&!p.launched){
+  charge=Math.min(1,charge+step*.012);
   document.getElementById("charge").style.width=(charge*100)+"%";
  }
- if(!player.launched)return;
- let p=player;
- p.vy+=.34*dt/16.67;
- if(cloudTime>0){p.vy-=.25*dt/16.67;cloudTime-=dt}
- p.x+=p.vx*dt/16.67;
- p.y+=p.vy*dt/16.67;
- p.vx*=Math.pow(.998,dt/16.67);
- p.angle=Math.atan2(p.vy,p.vx);
+
+ if(transporting){
+  transportTimer+=dt;
+  if(transportTimer>850)exitPipe();
+  return;
+ }
+ if(!p.launched)return;
+
+ // 急降下・空中物理
+ p.vy+=.34*step;
+ if(cloudTime>0){
+  p.vy-=.27*step;
+  cloudTime-=dt;
+ }
+ if(p.diving)p.vy+=.34*step;
+
+ // 速度制限
+ p.vx=Math.max(-4,Math.min(30,p.vx));
+ p.vy=Math.max(-28,Math.min(32,p.vy));
+
+ p.x+=p.vx*step;
+ p.y+=p.vy*step;
+ p.angle+=p.spin*step;
+ p.spin*=Math.pow(.995,step);
+
+ // キノコ・巨大キノコ・雲との衝突
  for(const o of objects){
   if(o.hit)continue;
   let dx=p.x-o.x,dy=p.y-o.y;
-  if(Math.hypot(dx,dy)<o.r+19){
-   o.hit=true;
-   if(o.type==="mega"){
-    megaBoost=1;
-    p.vx*=1.42;p.vy=-Math.max(17,Math.abs(p.vy)*1.6);
-    burst(o.x,o.y,100,"#ffd43b");
-    burst(o.x,o.y,55,"#fff");
-    document.getElementById("message").textContent="⭐ MEGA MUSHROOM!!";
-   }else if(o.type==="mush"){
-    p.vy-=3.2;p.vx+=1.1;
-    burst(o.x,o.y,18,"#ff6584");
-   }else if(o.type==="cloud"){
-    cloudTime=2600;
-    p.vy=Math.min(p.vy,-2);
+  if(Math.hypot(dx,dy)<o.r+p.r){
+   if(o.type==="cloud"){
+    o.hit=true;cloudTime=2600;
+    p.vy=Math.min(p.vy,-3);
     cloudBurst(o.x,o.y);
-    document.getElementById("message").textContent="☁️ 雲の上をふわふわ飛行！";
+    document.getElementById("message").textContent="☁️ 雲の上をふわふわ！";
+   }else{
+    o.hit=true;
+    let impact=Math.max(0,p.vy);
+    if(o.type==="mega"){
+     p.vy=-Math.max(20,impact*2.2);
+     p.vx=Math.max(p.vx*1.45,22);
+     burst(o.x,o.y,110,"#ffd43b");
+     burst(o.x,o.y,55,"#fff");
+     document.getElementById("message").textContent="⭐ MEGA MUSHROOM!!";
+    }else{
+     // 落下速度を強く反映して跳ね返す
+     p.vy=-Math.max(12,impact*1.85+9);
+     p.vx=Math.max(p.vx*1.12,10+impact*.35);
+     p.spin+=.32;
+     burst(o.x,o.y,28,"#ff6584");
+     document.getElementById("message").textContent="🍄 大ジャンプ！！";
+    }
+    p.diving=false;
+    p.grounded=false;
+    diveUsed=false;
    }
   }
  }
- if(p.y>groundY-22&&p.x>150){
-  p.y=groundY-22;
-  p.vy=-Math.abs(p.vy)*.48;
-  p.vx*=.78;
+
+ // 地面との衝突
+ let floor=groundY-p.r;
+ if(p.y>=floor&&p.vy>=0){
+  p.y=floor;
+  p.grounded=true;
+
+  // 泥の範囲内なら強い抵抗で停止
+  let inMud=muds.find(m=>p.x>=m.x&&p.x<=m.x+m.w);
+  if(inMud){
+   p.vy=0;
+   p.vx*=Math.pow(.72,step);
+   p.spin*=Math.pow(.65,step);
+   p.diving=false;
+   document.getElementById("message").textContent="🟤 泥にハマって停止中...";
+   if(Math.abs(p.vx)<.18){
+    p.vx=0;p.vy=0;stopped=true;
+    document.getElementById("message").textContent="🟤 泥でピタッと停止！";
+   }
+  }else{
+   // 通常の地面は反発・摩擦
+   if(p.vy>2){
+    p.vy=-p.vy*.28;
+    p.vx*=.91;
+    p.spin+=.15;
+   }else{
+    p.vy=0;
+    p.vx*=Math.pow(.985,step);
+   }
+   p.diving=false;
+  }
+
+  // 地面に着いたら急降下の使用権を戻す
+  if(Math.abs(p.vy)<2&&!inMud)diveUsed=false;
  }
+
+ // 土管の入口に転がり込む
+ for(const pipe of pipes){
+  if(pipe.used)continue;
+  let near=p.x>pipe.x-20&&p.x<pipe.x+pipe.w+15;
+  let atGround=p.y>groundY-75;
+  if(near&&atGround&&p.vx>2){
+   enterPipe(pipe);break;
+  }
+ }
+
+ // カメラ
  cameraX=Math.max(0,p.x-W*.34);
  cameraY=p.y-H*.48;
+
  distance=Math.max(0,Math.floor(p.x/10));
  document.getElementById("distance").textContent=distance;
+
  let isSpace=(groundY-p.y)>H*3;
  if(isSpace!==space){
   space=isSpace;
   document.getElementById("world").textContent=space?"🚀 宇宙":"🌳 地上";
  }
- if(p.x>best*10){
+
+ if(p.x/10>best){
   best=Math.floor(p.x/10);
   localStorage.gnomeBest=best;
   document.getElementById("best").textContent=best;
  }
- if(p.x>16000||p.y>groundY+1000||p.vx<.15&&Math.abs(p.vy)<.5){
+
+ if(p.x>20000||p.y>groundY+1200||(stopped&&p.vx===0)){
   finish();
  }
-}
-
-function finish(){
- playing=false;charging=false;
- document.getElementById("charge").style.width="0%";
- document.getElementById("message").textContent="記録 "+distance+" m！";
- setTimeout(()=>{document.getElementById("menu").style.display="flex";document.getElementById("message").textContent="画面を長押ししてパワーをためよう！"},1300);
 }
 
 function drawBackground(){
  if(space){
   ctx.fillStyle="#080c2c";ctx.fillRect(0,0,W,H);
-  for(let i=0;i<100;i++){
+  for(let i=0;i<110;i++){
    let x=((i*173-cameraX*.12)%W+W)%W;
    let y=((i*97-cameraY*.1)%H+H)%H;
-   ctx.fillStyle=i%4===0?"#ffe88a":"#fff";
    ctx.globalAlpha=.4+(i%5)*.12;
+   ctx.fillStyle=i%4===0?"#ffe88a":"#fff";
    ctx.fillRect(x,y,2,2);
   }
   ctx.globalAlpha=1;
-  ctx.fillStyle="#a9b8ff";ctx.beginPath();ctx.arc(W*.78,H*.2,35,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle="#a9b8ff";
+  ctx.beginPath();ctx.arc(W*.78,H*.2,35,0,Math.PI*2);ctx.fill();
  }else{
   let g=ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,"#69c6ee");g.addColorStop(1,"#e2f7d4");
   ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-  for(let i=0;i<7;i++){
-   let x=((i*260-cameraX*.25)% (W+300)+W+300)%(W+300)-100;
+  for(let i=0;i<8;i++){
+   let x=((i*260-cameraX*.25)%(W+300)+W+300)%(W+300)-100;
+   let y=90+i%3*80;
    ctx.fillStyle="#ffffff66";
-   ctx.beginPath();ctx.arc(x,100+i%3*75,35,0,Math.PI*2);ctx.arc(x+35,95+i%3*75,45,0,Math.PI*2);ctx.arc(x+75,110+i%3*75,30,0,Math.PI*2);ctx.fill();
+   ctx.beginPath();
+   ctx.arc(x,y,35,0,Math.PI*2);
+   ctx.arc(x+35,y-5,45,0,Math.PI*2);
+   ctx.arc(x+75,y+10,30,0,Math.PI*2);
+   ctx.fill();
   }
  }
 }
 
-function drawWorld(){
+function drawGround(){
  let gy=groundY-cameraY;
  if(gy<H+100&&gy>-100){
   ctx.fillStyle=space?"#30334b":"#4b9a46";
@@ -220,50 +404,132 @@ function drawWorld(){
   ctx.fillStyle=space?"#8588a0":"#8bcf5d";
   ctx.fillRect(0,gy,W,8);
  }
+ // 泥
+ for(const m of muds){
+  let x=m.x-cameraX,y=m.y-cameraY;
+  if(x+m.w<-10||x>W+10)continue;
+  ctx.fillStyle="#60432f";
+  ctx.beginPath();ctx.roundRect(x,y-5,m.w,17,7);ctx.fill();
+  ctx.fillStyle="#876044";
+  for(let i=0;i<5;i++){
+   ctx.beginPath();ctx.arc(x+12+i*m.w/5,y+1,5,0,Math.PI*2);ctx.fill();
+  }
+  ctx.fillStyle="#b58a62";
+  ctx.fillRect(x+5,y-4,m.w-10,3);
+ }
+}
+
+function drawMushroom(o,x,y){
+ ctx.save();ctx.translate(x,y);
+ ctx.fillStyle="#f5e5cf";
+ ctx.fillRect(-6,0,12,18);
+ ctx.fillStyle="#e94360";
+ ctx.beginPath();ctx.arc(0,0,o.r,Math.PI,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#fff";
+ for(let i=-1;i<=1;i++){
+  ctx.beginPath();ctx.arc(i*7,-8,3,0,Math.PI*2);ctx.fill();
+ }
+ ctx.restore();
+}
+
+function drawMega(o,x,y){
+ ctx.save();ctx.translate(x,y);
+ ctx.shadowColor="#ffe34e";ctx.shadowBlur=22;
+ ctx.fillStyle="#ffda35";
+ ctx.beginPath();ctx.arc(0,0,o.r,0,Math.PI*2);ctx.fill();
+ ctx.shadowBlur=0;
+ ctx.fillStyle="#b84739";
+ ctx.beginPath();ctx.arc(0,-4,o.r*.9,Math.PI,Math.PI*2);ctx.fill();
+ ctx.fillStyle="white";ctx.font="22px Arial";ctx.textAlign="center";
+ ctx.fillText("⭐",0,12);
+ ctx.restore();
+}
+
+function drawPipe(pipe){
+ let x=pipe.x-cameraX,y=pipe.y-cameraY,w=pipe.w,h=pipe.h;
+ if(x<-100||x>W+100)return;
+ // 土管本体
+ ctx.fillStyle="#087d37";
+ ctx.fillRect(x+7,y+13,w-14,h-13);
+ // 側面の影
+ ctx.fillStyle="#07552d";
+ ctx.fillRect(x+w-15,y+13,8,h-13);
+ // 明るい面
+ ctx.fillStyle="#20b653";
+ ctx.fillRect(x+10,y+16,10,h-16);
+ // 上部の太い縁
+ ctx.fillStyle="#087a34";
+ ctx.fillRect(x,y,w,18);
+ ctx.fillStyle="#25c75b";
+ ctx.fillRect(x+3,y+2,w-6,7);
+ // 穴
+ ctx.fillStyle="#063d26";
+ ctx.beginPath();ctx.ellipse(x+w/2,y+9,w*.39,6,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#111f20";
+ ctx.beginPath();ctx.ellipse(x+w/2,y+9,w*.27,3.5,0,0,Math.PI*2);ctx.fill();
+ // 下部の縁
+ ctx.fillStyle="#07552d";
+ ctx.fillRect(x+7,y+h-5,w-14,5);
+}
+
+function drawWorld(){
+ drawGround();
  for(const o of objects){
   let x=o.x-cameraX,y=o.y-cameraY;
   if(x<-120||x>W+120||y<-150||y>H+150||o.hit)continue;
   if(o.type==="cloud"){
    ctx.fillStyle="#ffffffcc";
-   ctx.beginPath();ctx.arc(x,y, o.r*.55,0,Math.PI*2);ctx.arc(x-o.r*.4,y+8,o.r*.4,0,Math.PI*2);ctx.arc(x+o.r*.4,y+7,o.r*.42,0,Math.PI*2);ctx.fill();
-  }else if(o.type==="mega"){
-   ctx.shadowColor="#ffe34e";ctx.shadowBlur=25;
-   ctx.fillStyle="#ffda35";ctx.beginPath();ctx.arc(x,y,o.r,0,Math.PI*2);ctx.fill();
-   ctx.shadowBlur=0;
-   ctx.fillStyle="#b84739";ctx.beginPath();ctx.arc(x,y-8,o.r*.85,Math.PI,Math.PI*2);ctx.fill();
-   ctx.fillStyle="white";ctx.font="22px Arial";ctx.textAlign="center";ctx.fillText("⭐",x,y+9);
-  }else{
-   ctx.fillStyle="#f7e5d2";ctx.fillRect(x-5,y+5,10,12);
-   ctx.fillStyle="#ed4564";ctx.beginPath();ctx.arc(x,y, o.r,Math.PI,Math.PI*2);ctx.fill();
-   ctx.fillStyle="white";for(let j=0;j<3;j++){ctx.beginPath();ctx.arc(x-7+j*7,y-8,2.5,0,Math.PI*2);ctx.fill()}
-  }
+   ctx.beginPath();
+   ctx.arc(x,y,o.r*.55,0,Math.PI*2);
+   ctx.arc(x-o.r*.4,y+8,o.r*.4,0,Math.PI*2);
+   ctx.arc(x+o.r*.4,y+7,o.r*.42,0,Math.PI*2);
+   ctx.fill();
+  }else if(o.type==="mega")drawMega(o,x,y);
+  else drawMushroom(o,x,y);
  }
+ for(const pipe of pipes)drawPipe(pipe);
 }
 
 function drawPlayer(){
  if(!player)return;
  let x=player.x-cameraX,y=player.y-cameraY;
- ctx.save();ctx.translate(x,y);ctx.rotate(player.angle*.45);
+ if(transporting){
+  ctx.globalAlpha=.45;
+ }
+ ctx.save();ctx.translate(x,y);ctx.rotate(player.angle);
  ctx.font="42px serif";ctx.textAlign="center";ctx.textBaseline="middle";
  ctx.fillText(emojis[selected],0,0);
- ctx.restore();
+ ctx.restore();ctx.globalAlpha=1;
 }
+
 function drawParticles(dt){
  for(let i=particles.length-1;i>=0;i--){
-  let p=particles[i];p.x+=p.vx*dt/16.67;p.y+=p.vy*dt/16.67;p.vy+=.12*dt/16.67;p.life-=dt/16.67;
-  ctx.globalAlpha=Math.max(0,p.life/55);ctx.fillStyle=p.color;
-  ctx.beginPath();ctx.arc(p.x-cameraX,p.y-cameraY,p.size,0,Math.PI*2);ctx.fill();
+  let p=particles[i];
+  p.x+=p.vx*dt/16.67;p.y+=p.vy*dt/16.67;
+  p.vy+=.12*dt/16.67;p.life-=dt/16.67;
+  ctx.globalAlpha=Math.max(0,p.life/55);
+  ctx.fillStyle=p.color;
+  ctx.beginPath();
+  ctx.arc(p.x-cameraX,p.y-cameraY,p.size,0,Math.PI*2);
+  ctx.fill();
   if(p.life<=0)particles.splice(i,1);
  }
  ctx.globalAlpha=1;
 }
+
 function render(dt){
- drawBackground();drawWorld();drawParticles(dt);drawPlayer();
+ drawBackground();
+ drawWorld();
+ drawParticles(dt);
+ drawPlayer();
 }
+
 function loop(now){
  if(!playing)return;
- let dt=Math.min(35,now-last||16);last=now;
- update(dt);render(dt);
+ let dt=Math.min(35,now-last||16);
+ last=now;
+ update(dt);
+ render(dt);
  requestAnimationFrame(loop);
 }
 render(16);

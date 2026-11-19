@@ -3,481 +3,270 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Garden Gnome Flight</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Garden Gnome</title>
 <style>
 *{box-sizing:border-box}
-body{
- margin:0;background:#172d28;color:white;
- font-family:Arial,"Hiragino Kaku Gothic ProN",sans-serif;
- overflow:hidden;user-select:none;touch-action:manipulation
-}
-#game{
- display:block;width:100vw;height:100dvh;
- background:#91d9f2;touch-action:none
-}
-#top{
- position:absolute;top:10px;left:10px;right:10px;
- display:flex;justify-content:space-between;gap:8px;
- pointer-events:none
-}
-.stat{
- background:#163c32e8;padding:9px 13px;
- border-radius:12px;font-size:12px;
- box-shadow:0 3px 8px #0004
-}
-.stat b{display:block;font-size:19px;color:#ffe18a;margin-top:3px}
-#menu{
- position:absolute;inset:0;display:flex;
- flex-direction:column;align-items:center;
- justify-content:center;background:#17382bdc;
- padding:18px;overflow:auto
-}
-h1{font-size:32px;color:#ffe28a;text-shadow:0 3px 4px #0008;margin:0 0 8px}
-.sub{color:#e0f4e8;margin-bottom:18px}
-#characters{
- display:grid;grid-template-columns:repeat(3,minmax(80px,105px));
- gap:10px;margin:10px 0 18px
-}
-.character{
- border:2px solid #729b7c;border-radius:13px;
- background:#315d43;padding:10px 4px;
- text-align:center;cursor:pointer
-}
-.character.selected{border:3px solid #ffdc63;background:#557e43}
-.character canvas{width:70px;height:75px}
-.character span{display:block;font-size:12px}
-button{
- border:0;border-radius:13px;padding:13px 25px;
- background:#ffcf52;color:#493016;
- font-weight:bold;font-size:17px;cursor:pointer;
- box-shadow:0 4px 0 #b47b24
-}
-#result{
- position:absolute;inset:0;display:none;
- align-items:center;justify-content:center;
- background:#142d27c9;padding:20px
-}
-.panel{
- background:#28523c;border:3px solid #a6c879;
- border-radius:20px;padding:24px;text-align:center;
- width:min(340px,95%)
-}
-.panel h2{color:#ffdf75}
-.panel strong{font-size:35px;color:#ffe28a}
-#hint{
- position:absolute;bottom:20px;left:0;right:0;
- text-align:center;color:white;
- text-shadow:0 2px 4px #000;font-weight:bold;
- pointer-events:none;font-size:14px
-}
-#back{
- position:absolute;bottom:12px;left:12px;
- padding:9px 13px;font-size:12px
-}
-.hidden{display:none!important}
+body{margin:0;background:#101c2b;color:white;font-family:Arial,sans-serif;overflow:hidden;touch-action:none}
+#game{display:block;width:100vw;height:100dvh;background:#8bd5ed;touch-action:none}
+#hud{position:fixed;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;text-shadow:0 2px 5px #234;font-weight:bold}
+.panel{background:#142638bb;padding:9px 13px;border-radius:12px}
+#chargeWrap{position:fixed;bottom:24px;left:10%;width:80%;height:17px;border:2px solid white;border-radius:20px;background:#2238;overflow:hidden;pointer-events:none}
+#charge{height:100%;width:0;background:linear-gradient(90deg,#5de5ff,#ffe45d,#ff713e);border-radius:20px}
+#message{position:fixed;bottom:55px;width:100%;text-align:center;text-shadow:0 2px 5px #234;font-weight:bold;pointer-events:none}
+#menu{position:fixed;inset:0;background:#102538ee;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+#menu h1{font-size:34px;margin:0}
+#characters{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.char{font-size:32px;padding:12px;border:2px solid #789;border-radius:14px;background:#ffffff18}
+.char.selected{border-color:#ffe45d;background:#ffe45d33}
+button{border:0;border-radius:13px;padding:13px 25px;background:#ffd84d;color:#243044;font-weight:bold;font-size:17px}
+.small{font-size:13px;color:#c7d8e5}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-
-<div id="top">
- <div class="stat">最高飛距離<b id="best">0 m</b></div>
- <div class="stat">プレイ回数<b id="plays">0 回</b></div>
- <div class="stat">今回の飛距離<b id="distance">0 m</b></div>
+<div id="hud">
+ <div class="panel">距離 <span id="distance">0</span> m<br>最高記録 <span id="best">0</span> m</div>
+ <div class="panel">プレイ回数 <span id="plays">0</span><br><span id="world">🌳 地上</span></div>
 </div>
-
+<div id="message">画面を長押ししてパワーをためよう！</div>
+<div id="chargeWrap"><div id="charge"></div></div>
 <div id="menu">
- <h1>🌼 Gnome Flight</h1>
- <div class="sub">ノームを飛ばして世界記録に挑戦！</div>
- <div>人形を選ぼう</div>
- <div id="characters"></div>
+ <h1>🍄 Garden Gnome</h1>
+ <div>ノームを選ぼう！</div>
+ <div id="characters">
+  <button class="char selected" data-char="0">🧙</button>
+  <button class="char" data-char="1">🧝</button>
+  <button class="char" data-char="2">🎅</button>
+  <button class="char" data-char="3">🧑‍🌾</button>
+  <button class="char" data-char="4">🧙‍♂️</button>
+ </div>
+ <div class="small">画面を長押しして発射！長いほど遠くへ飛ぶ！</div>
  <button id="start">ゲームスタート</button>
- <div style="font-size:12px;margin-top:15px;color:#d5e8d6">
- ゲーム画面をタップして発射！
- </div>
+ <div class="small">キーボード：スペースキーでも操作できるよ</div>
 </div>
-
-<div id="hint">画面をタップして発射！</div>
-<button id="back" class="hidden">メニューへ</button>
-
-<div id="result">
- <div class="panel">
-  <h2 id="resultTitle">着地！</h2>
-  <div>今回の飛距離</div>
-  <strong id="finalDistance">0 m</strong>
-  <p id="recordMessage"></p>
-  <button id="again">もう一度！</button>
-  <br><br>
-  <button id="toMenu" style="background:#d7e7c9">人形選択へ</button>
- </div>
-</div>
-
 <script>
-const canvas=document.getElementById("game");
-const ctx=canvas.getContext("2d");
-let W=innerWidth,H=innerHeight;
-let dpr=Math.min(devicePixelRatio||1,2);
-
-function resize(){
- W=innerWidth;H=innerHeight;
- canvas.width=W*dpr;canvas.height=H*dpr;
- canvas.style.width=W+"px";canvas.style.height=H+"px";
- ctx.setTransform(dpr,0,0,dpr,0,0);
-}
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+let W=innerWidth,H=innerHeight,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;canvas.width=W*DPR;canvas.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)}
 addEventListener("resize",resize);resize();
 
-const people=[
- {name:"赤帽子",hat:"#e94438",coat:"#d84c35",skin:"#ffd2a0"},
- {name:"青帽子",hat:"#328bd4",coat:"#3462a0",skin:"#f5c89b"},
- {name:"緑帽子",hat:"#48b75a",coat:"#397c43",skin:"#f5c89b"},
- {name:"紫帽子",hat:"#a36bd3",coat:"#7547a3",skin:"#eac09b"},
- {name:"黄色帽子",hat:"#f3ca3e",coat:"#d49b26",skin:"#ffd5a8"},
- {name:"黒帽子",hat:"#383b43",coat:"#52545a",skin:"#edc09b"}
-];
+const emojis=["🧙","🧝","🎅","🧑‍🌾","🧙‍♂️"];
 let selected=0;
-let state="menu";
-let player=null;
-let camera=0;
-let distance=0;
-let particles=[];
-let scenery=[];
-let flowers=[];
-let shake=0;
-let launchTime=0;
-let last=0;
-let best=Number(localStorage.getItem("gnomeBest")||0);
-let plays=Number(localStorage.getItem("gnomePlays")||0);
-
-const $=id=>document.getElementById(id);
-function updateStats(){
- $("best").textContent=best+" m";
- $("plays").textContent=plays+" 回";
- $("distance").textContent=distance+" m";
-}
-updateStats();
-
-function drawGnome(c,x,y,s=1,angle=0){
- ctx.save();
- ctx.translate(x,y);ctx.rotate(angle);ctx.scale(s,s);
- // 体
- ctx.fillStyle=c.coat;
- ctx.beginPath();ctx.ellipse(0,0,13,19,0,0,Math.PI*2);ctx.fill();
- // 足
- ctx.strokeStyle="#493627";ctx.lineWidth=5;
- ctx.beginPath();ctx.moveTo(-6,14);ctx.lineTo(-9,23);
- ctx.moveTo(6,14);ctx.lineTo(9,23);ctx.stroke();
- // 顔
- ctx.fillStyle=c.skin;
- ctx.beginPath();ctx.arc(0,-17,11,0,Math.PI*2);ctx.fill();
- // ひげ
- ctx.fillStyle="#fff0d5";
- ctx.beginPath();ctx.moveTo(-8,-13);ctx.lineTo(0,0);ctx.lineTo(9,-13);
- ctx.quadraticCurveTo(0,-8,-8,-13);ctx.fill();
- // 帽子
- ctx.fillStyle=c.hat;
- ctx.beginPath();ctx.moveTo(-13,-24);ctx.quadraticCurveTo(-12,-48,3,-50);
- ctx.quadraticCurveTo(12,-39,13,-24);ctx.closePath();ctx.fill();
- ctx.fillStyle="#fff2ce";
- ctx.beginPath();ctx.arc(3,-49,3,0,Math.PI*2);ctx.fill();
- // 腕
- ctx.strokeStyle=c.coat;ctx.lineWidth=6;ctx.lineCap="round";
- ctx.beginPath();ctx.moveTo(-10,-4);ctx.lineTo(-19,3);
- ctx.moveTo(10,-4);ctx.lineTo(19,3);ctx.stroke();
- ctx.restore();
-}
-
-function makeCharacters(){
- const box=$("characters");box.innerHTML="";
- people.forEach((p,i)=>{
-  let el=document.createElement("div");
-  el.className="character"+(i===selected?" selected":"");
-  let cv=document.createElement("canvas");
-  cv.width=100;cv.height=100;
-  let c=cv.getContext("2d");
-  drawGnome(p,50,70,1.15);
-  el.appendChild(cv);
-  let name=document.createElement("span");
-  name.textContent=p.name;el.appendChild(name);
-  el.onclick=()=>{selected=i;makeCharacters()};
-  box.appendChild(el);
- });
-}
-makeCharacters();
-
-function groundY(){return H*.77}
-
-function makeScenery(){
- scenery=[];
- for(let i=0;i<35;i++){
-  scenery.push({
-   x:i*240+Math.random()*100,
-   y:groundY()-30-Math.random()*100,
-   size:35+Math.random()*65,
-   type:Math.random()
-  });
- }
- flowers=[];
- for(let i=0;i<90;i++){
-  flowers.push({
-   x:i*95+Math.random()*70,
-   color:["#ff6386","#fff06b","#b98aff","#ffffff"][i%4],
-   size:3+Math.random()*4
-  });
- }
-}
-makeScenery();
-
-function drawBackground(){
- let sky=ctx.createLinearGradient(0,0,0,H);
- sky.addColorStop(0,"#65c5f0");
- sky.addColorStop(.72,"#d4eff2");
- sky.addColorStop(1,"#8bc66a");
- ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
-
- // 太陽
- ctx.fillStyle="#fff4b1";
- ctx.beginPath();ctx.arc(W*.82,H*.16,38,0,Math.PI*2);ctx.fill();
-
- // 雲
- for(let i=0;i<7;i++){
-  let x=((i*210-camera*.18)%(W+300)+W+300)%(W+300)-100;
-  let y=H*(.12+(i%3)*.12);
-  ctx.fillStyle="#ffffffcc";
-  ctx.beginPath();ctx.arc(x,y,24,0,Math.PI*2);
-  ctx.arc(x+28,y-10,30,0,Math.PI*2);
-  ctx.arc(x+58,y,22,0,Math.PI*2);ctx.fill();
- }
-
- // 遠くの山
- ctx.fillStyle="#7ebd9b";
- ctx.beginPath();ctx.moveTo(0,H*.65);
- for(let x=0;x<=W+20;x+=20){
-  ctx.lineTo(x,H*.55+Math.sin((x+camera*.12)*.012)*32);
- }
- ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.fill();
-
- // 木
- for(let i=0;i<scenery.length;i++){
-  let t=scenery[i];
-  let x=((t.x-camera*.48)%(W+300)+W+300)%(W+300)-100;
-  let y=groundY()-35;
-  ctx.fillStyle="#765039";
-  ctx.fillRect(x-5,y-50,10,55);
-  ctx.fillStyle="#367b43";
-  ctx.beginPath();ctx.arc(x,y-65,t.size*.48,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle="#4c9850";
-  ctx.beginPath();ctx.arc(x-15,y-76,t.size*.3,0,Math.PI*2);ctx.fill();
- }
-
- // 地面
- ctx.fillStyle="#71b84b";ctx.fillRect(0,groundY(),W,H-groundY());
- ctx.fillStyle="#4b943e";ctx.fillRect(0,groundY(),W,8);
- for(let f of flowers){
-  let x=((f.x-camera)%(W+100)+W+100)%(W+100);
-  if(x>W)continue;
-  ctx.fillStyle=f.color;
-  ctx.beginPath();ctx.arc(x,groundY()-3,f.size,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle="#397e36";
-  ctx.fillRect(x,groundY(),1,8);
- }
-}
-
-function explosion(x,y,power=1){
- shake=12;
- for(let i=0;i<65;i++){
-  let a=Math.random()*Math.PI*2;
-  let v=(2+Math.random()*9)*power;
-  particles.push({
-   x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,
-   life:35+Math.random()*25,
-   max:60,size:2+Math.random()*8,
-   color:["#ffdf6b","#ff922e","#e84a20","#fff2d2"][i%4],
-   smoke:false
-  });
- }
- for(let i=0;i<24;i++){
-  particles.push({
-   x:x+(Math.random()-.5)*20,y:y+(Math.random()-.5)*20,
-   vx:(Math.random()-.5)*3,vy:-Math.random()*4,
-   life:65,max:65,size:10+Math.random()*15,
-   color:"#9a9288",smoke:true
-  });
- }
-}
-
-function startGame(){
- $("menu").classList.add("hidden");
- $("result").style.display="none";
- $("back").classList.remove("hidden");
- $("hint").textContent="画面をタップして発射！";
- state="ready";
- camera=0;distance=0;particles=[];
- player={x:W*.2,y:groundY()-45,vx:0,vy:0,angle:0,air:false,boost:0};
- plays++;
- localStorage.setItem("gnomePlays",plays);
- updateStats();
-}
-
-function launch(){
- if(state!=="ready")return;
- state="flight";
- player.air=true;
- player.vx=13;
- player.vy=-17;
- launchTime=performance.now();
- explosion(player.x-35,player.y+15,1.2);
- $("hint").textContent="タップで急降下！";
-}
-
-function finish(){
- if(state!=="flight")return;
- state="result";
- let score=Math.floor(distance);
- let record=score>best;
- if(record){
-  best=score;
-  localStorage.setItem("gnomeBest",best);
- }
- updateStats();
- $("finalDistance").textContent=score+" m";
- $("resultTitle").textContent=record?"🏆 新記録！":"着地！";
- $("recordMessage").textContent=record?"自己最高記録を更新した！":"最高記録："+best+" m";
- $("result").style.display="flex";
- $("hint").textContent="";
-}
-
-function tap(){
- if(state==="ready"){launch();return}
- if(state==="flight"){
-  player.vy-=5;
-  player.boost=12;
-  for(let i=0;i<12;i++){
-   particles.push({
-    x:player.x,y:player.y+10,
-    vx:(Math.random()-.5)*5,vy:Math.random()*4,
-    life:20,max:20,size:4,
-    color:"#ffe45c",smoke:false
-   });
-  }
- }
-}
-canvas.addEventListener("pointerdown",e=>{
- e.preventDefault();tap();
+document.querySelectorAll(".char").forEach(b=>b.onclick=()=>{
+ selected=+b.dataset.char;
+ document.querySelectorAll(".char").forEach(x=>x.classList.toggle("selected",x===b));
 });
 
-function drawLauncher(){
- let x=W*.2,y=groundY()-45;
- // 台座
- ctx.fillStyle="#67452b";
- ctx.fillRect(x-42,y+17,85,17);
- ctx.fillStyle="#9b7045";
- ctx.fillRect(x-30,y+28,60,8);
- // 枠
- ctx.strokeStyle="#684327";ctx.lineWidth=9;
- ctx.lineCap="round";
- ctx.beginPath();ctx.moveTo(x-22,y+12);ctx.lineTo(x-28,y-70);
- ctx.moveTo(x+22,y+12);ctx.lineTo(x+28,y-70);ctx.stroke();
- // ゴム
- ctx.strokeStyle="#3f2921";ctx.lineWidth=4;
- ctx.beginPath();ctx.moveTo(x-28,y-70);
- ctx.lineTo(x,y-30);ctx.lineTo(x+28,y-70);ctx.stroke();
- drawGnome(people[selected],x,y-25,.85);
+let best=+(localStorage.gnomeBest||0),plays=+(localStorage.gnomePlays||0);
+document.getElementById("best").textContent=best;
+document.getElementById("plays").textContent=plays;
+
+let player,objects=[],particles=[],cameraX=0,cameraY=0;
+let playing=false,charging=false,charge=0,last=0,space=false;
+let distance=0,cloudTime=0,megaBoost=0,groundY=0;
+const rand=(a,b)=>a+Math.random()*(b-a);
+
+function reset(){
+ groundY=H*.76;
+ player={x:100,y:groundY-30,vx:0,vy:0,angle:0,launched:false};
+ objects=[];particles=[];cameraX=0;cameraY=0;
+ distance=0;cloudTime=0;megaBoost=0;space=false;
+ for(let i=0;i<90;i++){
+  let x=rand(260,15000);
+  let mega=(i+1)%5===0;
+  objects.push({x,y:groundY-rand(5,35),type:mega?"mega":"mush",r:mega?30:rand(13,20),hit:false});
+ }
+ for(let i=0;i<28;i++){
+  objects.push({x:rand(500,14000),y:groundY-rand(H*1.05,H*2.3),type:"cloud",r:rand(45,85),hit:false});
+ }
+ objects.sort((a,b)=>a.x-b.x);
+}
+
+function start(){
+ document.getElementById("menu").style.display="none";
+ plays++;localStorage.gnomePlays=plays;
+ document.getElementById("plays").textContent=plays;
+ reset();playing=true;last=performance.now();
+ requestAnimationFrame(loop);
+}
+
+document.getElementById("start").onclick=start;
+
+function beginCharge(){if(!playing||player.launched)return;charging=true;charge=0}
+function releaseCharge(){
+ if(!charging||!playing||player.launched)return;
+ charging=false;
+ let power=Math.min(charge,1);
+ player.vx=8+power*15;
+ player.vy=-7-power*10;
+ player.launched=true;
+ burst(player.x,player.y,20,"#fff1a6");
+ document.getElementById("message").textContent="飛んでいるよ！";
+}
+canvas.addEventListener("pointerdown",e=>{e.preventDefault();beginCharge()});
+addEventListener("pointerup",releaseCharge);
+addEventListener("pointercancel",releaseCharge);
+let keyDown=false;
+addEventListener("keydown",e=>{if(e.code==="Space"&&!keyDown){e.preventDefault();keyDown=true;beginCharge()}});
+addEventListener("keyup",e=>{if(e.code==="Space"){keyDown=false;releaseCharge()}});
+
+function burst(x,y,n,color){
+ for(let i=0;i<n;i++){
+  let a=rand(0,Math.PI*2),s=rand(2,10);
+  particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(25,55),color,size:rand(3,8)});
+ }
+}
+function cloudBurst(x,y){
+ burst(x,y,45,"#ffffff");
+ for(let i=0;i<18;i++)particles.push({x:x+rand(-30,30),y:y+rand(-15,15),vx:rand(-3,3),vy:rand(-5,-1),life:60,color:"#b8efff",size:rand(8,17)});
 }
 
 function update(dt){
- if(state==="flight"){
-  let p=player;
-  let boost=p.boost>0?1.12:1;
-  p.boost=Math.max(0,p.boost-dt);
-  p.vy+=.43*dt;
-  p.vx*=Math.pow(.998,dt);
-  p.x+=p.vx*dt*boost;
-  p.y+=p.vy*dt;
-  p.angle=Math.atan2(p.vy,p.vx);
-  if(p.y>groundY()-18){
-   p.y=groundY()-18;
-   if(Math.abs(p.vx)>2){
-    p.vy=-Math.abs(p.vy)*.48;
-    p.vx*=.78;
-    explosion(p.x,p.y,.3);
-   }else finish();
+ if(charging&&!player.launched){
+  charge=Math.min(1,charge+dt*.00035);
+  document.getElementById("charge").style.width=(charge*100)+"%";
+ }
+ if(!player.launched)return;
+ let p=player;
+ p.vy+=.34*dt/16.67;
+ if(cloudTime>0){p.vy-=.25*dt/16.67;cloudTime-=dt}
+ p.x+=p.vx*dt/16.67;
+ p.y+=p.vy*dt/16.67;
+ p.vx*=Math.pow(.998,dt/16.67);
+ p.angle=Math.atan2(p.vy,p.vx);
+ for(const o of objects){
+  if(o.hit)continue;
+  let dx=p.x-o.x,dy=p.y-o.y;
+  if(Math.hypot(dx,dy)<o.r+19){
+   o.hit=true;
+   if(o.type==="mega"){
+    megaBoost=1;
+    p.vx*=1.42;p.vy=-Math.max(17,Math.abs(p.vy)*1.6);
+    burst(o.x,o.y,100,"#ffd43b");
+    burst(o.x,o.y,55,"#fff");
+    document.getElementById("message").textContent="⭐ MEGA MUSHROOM!!";
+   }else if(o.type==="mush"){
+    p.vy-=3.2;p.vx+=1.1;
+    burst(o.x,o.y,18,"#ff6584");
+   }else if(o.type==="cloud"){
+    cloudTime=2600;
+    p.vy=Math.min(p.vy,-2);
+    cloudBurst(o.x,o.y);
+    document.getElementById("message").textContent="☁️ 雲の上をふわふわ飛行！";
+   }
   }
-  camera=Math.max(0,p.x-W*.27);
-  distance=Math.max(0,Math.floor(camera/10));
-  $("distance").textContent=distance+" m";
-  if(p.x-camera>W+50)camera=p.x-W*.5;
-  if(p.vx<.5&&p.y>=groundY()-19)finish();
-  if(performance.now()-launchTime>25000)finish();
  }
- particles=particles.filter(p=>p.life>0);
- for(let p of particles){
-  p.x+=p.vx*dt;p.y+=p.vy*dt;
-  p.vy+=p.smoke?-.025:.12;
-  p.vx*=.98;p.life-=dt;
-  if(p.smoke)p.size+=.16*dt;
+ if(p.y>groundY-22&&p.x>150){
+  p.y=groundY-22;
+  p.vy=-Math.abs(p.vy)*.48;
+  p.vx*=.78;
  }
- shake*=Math.pow(.88,dt);
+ cameraX=Math.max(0,p.x-W*.34);
+ cameraY=p.y-H*.48;
+ distance=Math.max(0,Math.floor(p.x/10));
+ document.getElementById("distance").textContent=distance;
+ let isSpace=(groundY-p.y)>H*3;
+ if(isSpace!==space){
+  space=isSpace;
+  document.getElementById("world").textContent=space?"🚀 宇宙":"🌳 地上";
+ }
+ if(p.x>best*10){
+  best=Math.floor(p.x/10);
+  localStorage.gnomeBest=best;
+  document.getElementById("best").textContent=best;
+ }
+ if(p.x>16000||p.y>groundY+1000||p.vx<.15&&Math.abs(p.vy)<.5){
+  finish();
+ }
 }
 
-function drawParticles(){
- for(let p of particles){
-  ctx.globalAlpha=Math.max(0,p.life/p.max);
-  ctx.fillStyle=p.color;
-  ctx.beginPath();ctx.arc(p.x-camera,p.y,p.size,0,Math.PI*2);ctx.fill();
+function finish(){
+ playing=false;charging=false;
+ document.getElementById("charge").style.width="0%";
+ document.getElementById("message").textContent="記録 "+distance+" m！";
+ setTimeout(()=>{document.getElementById("menu").style.display="flex";document.getElementById("message").textContent="画面を長押ししてパワーをためよう！"},1300);
+}
+
+function drawBackground(){
+ if(space){
+  ctx.fillStyle="#080c2c";ctx.fillRect(0,0,W,H);
+  for(let i=0;i<100;i++){
+   let x=((i*173-cameraX*.12)%W+W)%W;
+   let y=((i*97-cameraY*.1)%H+H)%H;
+   ctx.fillStyle=i%4===0?"#ffe88a":"#fff";
+   ctx.globalAlpha=.4+(i%5)*.12;
+   ctx.fillRect(x,y,2,2);
+  }
+  ctx.globalAlpha=1;
+  ctx.fillStyle="#a9b8ff";ctx.beginPath();ctx.arc(W*.78,H*.2,35,0,Math.PI*2);ctx.fill();
+ }else{
+  let g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#69c6ee");g.addColorStop(1,"#e2f7d4");
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(let i=0;i<7;i++){
+   let x=((i*260-cameraX*.25)% (W+300)+W+300)%(W+300)-100;
+   ctx.fillStyle="#ffffff66";
+   ctx.beginPath();ctx.arc(x,100+i%3*75,35,0,Math.PI*2);ctx.arc(x+35,95+i%3*75,45,0,Math.PI*2);ctx.arc(x+75,110+i%3*75,30,0,Math.PI*2);ctx.fill();
+  }
+ }
+}
+
+function drawWorld(){
+ let gy=groundY-cameraY;
+ if(gy<H+100&&gy>-100){
+  ctx.fillStyle=space?"#30334b":"#4b9a46";
+  ctx.fillRect(0,gy,W,H-gy+200);
+  ctx.fillStyle=space?"#8588a0":"#8bcf5d";
+  ctx.fillRect(0,gy,W,8);
+ }
+ for(const o of objects){
+  let x=o.x-cameraX,y=o.y-cameraY;
+  if(x<-120||x>W+120||y<-150||y>H+150||o.hit)continue;
+  if(o.type==="cloud"){
+   ctx.fillStyle="#ffffffcc";
+   ctx.beginPath();ctx.arc(x,y, o.r*.55,0,Math.PI*2);ctx.arc(x-o.r*.4,y+8,o.r*.4,0,Math.PI*2);ctx.arc(x+o.r*.4,y+7,o.r*.42,0,Math.PI*2);ctx.fill();
+  }else if(o.type==="mega"){
+   ctx.shadowColor="#ffe34e";ctx.shadowBlur=25;
+   ctx.fillStyle="#ffda35";ctx.beginPath();ctx.arc(x,y,o.r,0,Math.PI*2);ctx.fill();
+   ctx.shadowBlur=0;
+   ctx.fillStyle="#b84739";ctx.beginPath();ctx.arc(x,y-8,o.r*.85,Math.PI,Math.PI*2);ctx.fill();
+   ctx.fillStyle="white";ctx.font="22px Arial";ctx.textAlign="center";ctx.fillText("⭐",x,y+9);
+  }else{
+   ctx.fillStyle="#f7e5d2";ctx.fillRect(x-5,y+5,10,12);
+   ctx.fillStyle="#ed4564";ctx.beginPath();ctx.arc(x,y, o.r,Math.PI,Math.PI*2);ctx.fill();
+   ctx.fillStyle="white";for(let j=0;j<3;j++){ctx.beginPath();ctx.arc(x-7+j*7,y-8,2.5,0,Math.PI*2);ctx.fill()}
+  }
+ }
+}
+
+function drawPlayer(){
+ if(!player)return;
+ let x=player.x-cameraX,y=player.y-cameraY;
+ ctx.save();ctx.translate(x,y);ctx.rotate(player.angle*.45);
+ ctx.font="42px serif";ctx.textAlign="center";ctx.textBaseline="middle";
+ ctx.fillText(emojis[selected],0,0);
+ ctx.restore();
+}
+function drawParticles(dt){
+ for(let i=particles.length-1;i>=0;i--){
+  let p=particles[i];p.x+=p.vx*dt/16.67;p.y+=p.vy*dt/16.67;p.vy+=.12*dt/16.67;p.life-=dt/16.67;
+  ctx.globalAlpha=Math.max(0,p.life/55);ctx.fillStyle=p.color;
+  ctx.beginPath();ctx.arc(p.x-cameraX,p.y-cameraY,p.size,0,Math.PI*2);ctx.fill();
+  if(p.life<=0)particles.splice(i,1);
  }
  ctx.globalAlpha=1;
 }
-
-function draw(){
- ctx.save();
- if(shake>1)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
- drawBackground();
-
- if(state==="ready")drawLauncher();
-
- if(state==="flight"||state==="result"){
-  if(player){
-   drawGnome(people[selected],player.x-camera,player.y,.95,player.angle);
-  }
- }
- drawParticles();
- ctx.restore();
+function render(dt){
+ drawBackground();drawWorld();drawParticles(dt);drawPlayer();
 }
-
-function loop(t){
- let dt=Math.min((t-last)/16.67||1,2);
- last=t;
- update(dt);
- draw();
+function loop(now){
+ if(!playing)return;
+ let dt=Math.min(35,now-last||16);last=now;
+ update(dt);render(dt);
  requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
-
-$("start").onclick=startGame;
-$("again").onclick=startGame;
-$("toMenu").onclick=()=>{
- state="menu";
- $("result").style.display="none";
- $("menu").classList.remove("hidden");
- $("back").classList.add("hidden");
- $("hint").textContent="";
- makeCharacters();
-};
-$("back").onclick=()=>{
- if(state==="flight"||state==="ready"){
-  state="menu";
-  $("menu").classList.remove("hidden");
-  $("back").classList.add("hidden");
-  $("hint").textContent="";
- }
-};
-
-addEventListener("keydown",e=>{
- if(e.code==="Space"){
-  e.preventDefault();tap();
- }
-});
+render(16);
 </script>
 </body>
 </html>
